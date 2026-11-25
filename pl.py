@@ -16,7 +16,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- CSS: NASCONDE SIDEBAR + STILE PULSANTI QUADRATI COLORATI ---
+# --- CSS: NASCONDE SIDEBAR + STILE PULSANTI TUTTI IDENTICI ---
 st.markdown("""
     <style>
     [data-testid="stSidebar"] {display: none !important;}
@@ -29,10 +29,20 @@ st.markdown("""
         font-weight: 600;
     }
 
-    /* Pulsanti grandi quadrati della schermata iniziale */
-    [class*="st-key-tile_"] button {
-        height: 170px !important;
+    /* Contenitore dei pulsanti della Home: larghezza e altezza bloccate */
+    [class*="st-key-tile_"] {
         width: 100% !important;
+        height: 175px !important;
+    }
+
+    /* Pulsanti grandi della schermata iniziale: dimensioni identiche */
+    [class*="st-key-tile_"] button {
+        height: 175px !important;
+        min-height: 175px !important;
+        max-height: 175px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
         border-radius: 16px !important;
         border: none !important;
         color: #ffffff !important;
@@ -42,7 +52,7 @@ st.markdown("""
         justify-content: center !important;
         text-align: center !important;
         white-space: pre-wrap !important;
-        padding: 14px !important;
+        padding: 14px 10px !important;
         box-shadow: 0 6px 14px rgba(15, 23, 42, 0.14) !important;
         transition: transform 0.15s ease, box-shadow 0.15s ease !important;
     }
@@ -62,8 +72,8 @@ st.markdown("""
 
     /* Icona grande al centro */
     [class*="st-key-tile_"] button p::first-line {
-        font-size: 4.8rem !important;
-        line-height: 2.4 !important;
+        font-size: 2.8rem !important;
+        line-height: 1.45 !important;
     }
 
     /* Colori distinti per ciascuno degli 8 pulsanti */
@@ -436,7 +446,7 @@ if st.session_state.pagina_attiva != "home":
     st.divider()
 
 # ==============================================================================
-# SCHERMATA INIZIALE: PULSANTI GRANDI QUADRATI COLORATI + CARICAMENTO STORICO
+# SCHERMATA INIZIALE: PULSANTI GRANDI TUTTI DELLA STESSA DIMENSIONE
 # ==============================================================================
 if st.session_state.pagina_attiva == "home":
     col_logo, col_titolo = st.columns([1.2, 6], vertical_alignment="center")
@@ -447,7 +457,7 @@ if st.session_state.pagina_attiva == "home":
         st.title("Easy Gest")
         st.caption(
             f"{db['ditta'].get('denominazione', '')} — {db['ditta'].get('titolare', '')} | "
-            "Gestione contabile Ditta Individuale"
+            "Gestione contabile ditta individuale"
         )
 
     riga1 = st.columns(4, gap="medium")
