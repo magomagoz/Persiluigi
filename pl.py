@@ -31,22 +31,39 @@ st.markdown("""
 
     /* Pulsanti grandi quadrati della schermata iniziale */
     [class*="st-key-tile_"] button {
-        height: 145px !important;
+        height: 170px !important;
         width: 100% !important;
         border-radius: 16px !important;
         border: none !important;
         color: #ffffff !important;
-        font-size: 1.85rem !important;
-        font-weight: 900 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        text-align: center !important;
         white-space: pre-wrap !important;
-        line-height: 1.35 !important;
         padding: 14px !important;
         box-shadow: 0 6px 14px rgba(15, 23, 42, 0.14) !important;
         transition: transform 0.15s ease, box-shadow 0.15s ease !important;
     }
+
     [class*="st-key-tile_"] button:hover {
         transform: translateY(-3px) !important;
         box-shadow: 0 10px 20px rgba(15, 23, 42, 0.22) !important;
+    }
+
+    /* Dicitura sotto l'icona */
+    [class*="st-key-tile_"] button p {
+        font-size: 1.05rem !important;
+        font-weight: 800 !important;
+        line-height: 1.25 !important;
+        margin: 0 !important;
+    }
+
+    /* Icona grande al centro */
+    [class*="st-key-tile_"] button p::first-line {
+        font-size: 2.8rem !important;
+        line-height: 1.4 !important;
     }
 
     /* Colori distinti per ciascuno degli 8 pulsanti */
@@ -435,32 +452,32 @@ if st.session_state.pagina_attiva == "home":
 
     riga1 = st.columns(4, gap="medium")
     with riga1[0]:
-        if st.button("🏢\n\nDati Ditta\nIndividuale", key="tile_1"):
+        if st.button("🏢\n\nDati Ditta Individuale", key="tile_1"):
             vai_a("ditta")
     with riga1[1]:
-        if st.button("👥\n\nAnagrafica\nClienti", key="tile_2"):
+        if st.button("👥\n\nAnagrafica Clienti", key="tile_2"):
             vai_a("clienti")
     with riga1[2]:
-        if st.button("🏭\n\nAnagrafica\nFornitori", key="tile_3"):
+        if st.button("🏭\n\nAnagrafica Fornitori", key="tile_3"):
             vai_a("fornitori")
     with riga1[3]:
-        if st.button("📦\n\nMagazzino\ne Listino", key="tile_4"):
+        if st.button("📦\n\nMagazzino e Listino", key="tile_4"):
             vai_a("magazzino")
 
     st.write("")
 
     riga2 = st.columns(4, gap="medium")
     with riga2[0]:
-        if st.button("🧾\n\nFatturazione\nVendita (Attiva)", key="tile_5"):
+        if st.button("🧾\n\nFatture Vendita", key="tile_5"):
             vai_a("fatture_attive")
     with riga2[1]:
-        if st.button("📥\n\nFatturazione\nAcquisti (Passiva)", key="tile_6"):
+        if st.button("📥\n\nFatture Acquisti", key="tile_6"):
             vai_a("fatture_passive")
     with riga2[2]:
-        if st.button("📅\n\nScadenzario\nIncassi/Pagamenti", key="tile_7"):
+        if st.button("📅\n\nScadenzario", key="tile_7"):
             vai_a("scadenzario")
     with riga2[3]:
-        if st.button("📝\n\nPreventivi\ne Offerte", key="tile_8"):
+        if st.button("📝\n\nPreventivi", key="tile_8"):
             vai_a("preventivi")
 
     st.write("")
