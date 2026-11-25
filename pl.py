@@ -62,8 +62,8 @@ st.markdown("""
 
     /* Icona grande al centro */
     [class*="st-key-tile_"] button p::first-line {
-        font-size: 2.8rem !important;
-        line-height: 1.4 !important;
+        font-size: 4.8rem !important;
+        line-height: 2.4 !important;
     }
 
     /* Colori distinti per ciascuno degli 8 pulsanti */
@@ -447,7 +447,7 @@ if st.session_state.pagina_attiva == "home":
         st.title("Easy Gest")
         st.caption(
             f"{db['ditta'].get('denominazione', '')} — {db['ditta'].get('titolare', '')} | "
-            "Gestione contabile ditta individuale"
+            "Gestione contabile Ditta Individuale"
         )
 
     riga1 = st.columns(4, gap="medium")
