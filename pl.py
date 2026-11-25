@@ -498,12 +498,27 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
 
 # --- BARRA SUPERIORE NELLE SEZIONI INTERNE ---
 if st.session_state.pagina_attiva != "home":
-    top_l, top_c, top_r = st.columns([1.4, 3.6, 1.4])
+    top_l, col_logo, col_titolo, top_r = st.columns([1.4, 1, 2.6, 1.4])
     with top_l:
         if st.button("⬅️ Torna alla Home", key="btn_back_home"):
             vai_a("home")
-    with top_c:
-        st.caption(f"**{db['ditta'].get('denominazione', 'Ditta Individuale')}** — {db['ditta'].get('titolare', '')}")
+    #with top_c:
+        #st.caption(f"**{db['ditta'].get('denominazione', 'Ditta Individuale')}** — {db['ditta'].get('titolare', '')}")
+    
+    col_logo, col_titolo = st.columns([1.2, 6], vertical_alignment="center")
+    with col_logo:
+        mostra_logo_programma(width=110)
+    with col_titolo:
+        st.title("Gestione contabile semplice")
+        st.caption(
+            f"{db['ditta'].get('denominazione', '')} — {db['ditta'].get('titolare', '')} | "
+            "Ditta individuale"
+        )
+    
+    
+    
+    
+    
     with top_r:
         db_top = json.loads(json.dumps(db, default=str))
         db_top.setdefault("ditta", {})["logo_b64"] = ottieni_logo_azienda_b64(db["ditta"])
