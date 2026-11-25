@@ -6,6 +6,19 @@ import tempfile
 import os
 from datetime import datetime, date, timedelta
 from fpdf import FPDF
+from PIL import Image
+
+# In alto nella Home (dopo "if st.session_state.pagina_attiva == 'home':")
+col_logo, col_titolo = st.columns([1.2, 6], vertical_alignment="center")
+with col_logo:
+    if os.path.exists("logo_app.png"):
+        st.image(Image.open("logo_app.png"), width=110)
+with col_titolo:
+    st.title("Easy Gest")
+    st.caption(
+        f"{db['ditta'].get('denominazione', '')} — {db['ditta'].get('titolare', '')} | "
+        "Gestione contabile ditta individuale"
+    )
 
 # --- CONFIGURAZIONE PAGINA (SIDEBAR CHIUSA) ---
 st.set_page_config(
