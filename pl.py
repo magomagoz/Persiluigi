@@ -505,7 +505,7 @@ if st.session_state.pagina_attiva != "home":
     #with top_c:
         #st.caption(f"**{db['ditta'].get('denominazione', 'Ditta Individuale')}** — {db['ditta'].get('titolare', '')}")
     
-    col_logo, col_titolo = st.columns([1.2, 6], vertical_alignment="center")
+    #col_logo, col_titolo = st.columns([1.2, 6], vertical_alignment="center")
     with col_logo:
         mostra_logo_programma(width=110)
     with col_titolo:
