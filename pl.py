@@ -97,11 +97,12 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- HELPER LOGO PERSISTENTE ---
-LOGO_CANDIDATES = ["logo_azienda.png", "logo_azienda.jpg", "logo_azienda.jpeg", "logo_app.png"]
+# --- HELPER LOGHI SEPARATI: LOGO PROGRAMMA (logo_app.png) VS LOGO DOCUMENTI (logo_azienda.png) ---
+LOGO_APP_CANDIDATES = ["logo_app.png", "logo_app.jpg", "logo_app.jpeg"]
+LOGO_AZIENDA_CANDIDATES = ["logo_azienda.png", "logo_azienda.jpg", "logo_azienda.jpeg"]
 
-def carica_logo_locale_b64():
-    for nome_file in LOGO_CANDIDATES:
+def leggi_file_b64(candidati):
+    for nome_file in candidati:
         if os.path.exists(nome_file):
             try:
                 with open(nome_file, "rb") as f:
@@ -110,55 +111,88 @@ def carica_logo_locale_b64():
                 pass
     return ""
 
-def ottieni_logo_b64(ditta_data):
-    logo_salvato = ditta_data.get("logo_b64", "")
-    if logo_salvato:
-        return logo_salvato
-    return carica_logo_locale_b64()
-
-def mostra_logo_widget(ditta_data, width=110):
-    logo_b64 = ottieni_logo_b64(ditta_data)
-    if logo_b64:
+def mostra_logo_programma(width=110):
+    logo_app_b64 = leggi_file_b64(LOGO_APP_CANDIDATES)
+    if logo_app_b64:
         try:
-            img_bytes = base64.b64decode(logo_b64)
-            st.image(img_bytes, width=width)
+            st.image(base64.b64decode(logo_app_b64), width=width)
             return
         except Exception:
             pass
-    for nome_file in LOGO_CANDIDATES:
+    for nome_file in LOGO_APP_CANDIDATES:
         if os.path.exists(nome_file):
             st.image(Image.open(nome_file), width=width)
             return
+
+def carica_logo_azienda_locale_b64():
+    return leggi_file_b64(LOGO_AZIENDA_CANDIDATES)
+
+def ottieni_logo_azienda_b64(ditta_data):
+    logo_salvato = ditta_data.get("logo_b64", "")
+    if logo_salvato:
+        return logo_salvato
+    return carica_logo_azienda_locale_b64()
+
+def mostra_logo_azienda_widget(ditta_data, width=120):
+    logo_b64 = ottieni_logo_azienda_b64(ditta_data)
+    if logo_b64:
+        try:
+            st.image(base64.b64decode(logo_b64), width=width)
+            return
+        except Exception:
+            pass
+    for nome_file in LOGO_AZIENDA_CANDIDATES:
+        if os.path.exists(nome_file):
+            st.image(Image.open(nome_file), width=width)
+            return
+
+# --- NORMALIZZAZIONE DATABASE STORICO ---
+DEFAULT_DITTA = {
+    "denominazione": "BLINDA 2000",
+    "titolare": "Persi Luigi",
+    "indirizzo": "Via di Torre Spaccata 149 A",
+    "cap_citta": "00169 - Roma",
+    "piva": "10416520582",
+    "cf": "PRSLGU72C11H501T",
+    "regime": "Regime Ordinario / Semplificato (con IVA)",
+    "iban": "IT83Q0760103200001053005003",
+    "pec": "",
+    "telefono": "tel 06/263011 cell 3924532719 - 388/9339564",
+    "logo_b64": ""
+}
+
+def normalizza_db(raw_db):
+    base = {
+        "ditta": dict(DEFAULT_DITTA),
+        "clienti": [],
+        "fornitori": [],
+        "magazzino": [],
+        "fatture_attive": [],
+        "fatture_passive": [],
+        "preventivi": []
+    }
+    if isinstance(raw_db, dict):
+        ditta_in = raw_db.get("ditta")
+        if isinstance(ditta_in, dict):
+            base["ditta"].update(ditta_in)
+        for key in ["clienti", "fornitori", "magazzino", "fatture_attive", "fatture_passive", "preventivi"]:
+            val = raw_db.get(key)
+            if isinstance(val, list):
+                base[key] = val
+    if not base["ditta"].get("logo_b64"):
+        base["ditta"]["logo_b64"] = carica_logo_azienda_locale_b64()
+    return base
 
 # --- INIZIALIZZAZIONE STATO ---
 def init_db():
     if "pagina_attiva" not in st.session_state:
         st.session_state.pagina_attiva = "home"
+    if "storico_caricato" not in st.session_state:
+        st.session_state.storico_caricato = False
     if "db" not in st.session_state:
-        st.session_state.db = {
-            "ditta": {
-                "denominazione": "BLINDA 2000",
-                "titolare": "Persi Luigi",
-                "indirizzo": "Via di Torre Spaccata 149 A",
-                "cap_citta": "00169 - Roma",
-                "piva": "10416520582",
-                "cf": "PRSLGU72C11H501T",
-                "regime": "Regime Ordinario / Semplificato (con IVA)",
-                "iban": "IT83Q0760103200001053005003",
-                "pec": "",
-                "telefono": "tel 06/263011 cell 3924532719 - 388/9339564",
-                "logo_b64": carica_logo_locale_b64()
-            },
-            "clienti": [],
-            "fornitori": [],
-            "magazzino": [],
-            "fatture_attive": [],
-            "fatture_passive": [],
-            "preventivi": []
-        }
+        st.session_state.db = normalizza_db({})
     else:
-        if not st.session_state.db.get("ditta", {}).get("logo_b64"):
-            st.session_state.db.setdefault("ditta", {})["logo_b64"] = carica_logo_locale_b64()
+        st.session_state.db = normalizza_db(st.session_state.db)
 
 init_db()
 db = st.session_state.db
@@ -172,7 +206,7 @@ def fmt_eur(val):
         return "-"
     return f"{val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-# --- FUNZIONE GENERAZIONE PDF SU SCHEMA ALLEGATO ---
+# --- FUNZIONE GENERAZIONE PDF SU SCHEMA ALLEGATO (USA LOGO AZIENDA) ---
 def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
     pdf = FPDF(orientation="P", unit="mm", format="A4")
     pdf.add_page()
@@ -186,7 +220,7 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
     grigio_banda = (135, 138, 142)
     nero = (20, 20, 20)
 
-    # 1. Riquadro superiore: Logo SX | Spettabile DX
+    # 1. Riquadro superiore: Logo Azienda SX | Spettabile DX
     h_top = 46
     w_sx_top = 68
     w_dx_top = w_tot - w_sx_top
@@ -196,7 +230,7 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
     pdf.rect(x0, y0, w_sx_top, h_top)
     pdf.rect(x0 + w_sx_top, y0, w_dx_top, h_top)
 
-    logo_b64 = ottieni_logo_b64(ditta_data)
+    logo_b64 = ottieni_logo_azienda_b64(ditta_data)
     if logo_b64:
         try:
             img_bytes = base64.b64decode(logo_b64)
@@ -471,7 +505,9 @@ if st.session_state.pagina_attiva != "home":
     with top_c:
         st.caption(f"**{db['ditta'].get('denominazione', 'Ditta Individuale')}** — {db['ditta'].get('titolare', '')}")
     with top_r:
-        json_str_top = json.dumps(db, indent=2, default=str)
+        db_top = json.loads(json.dumps(db, default=str))
+        db_top.setdefault("ditta", {})["logo_b64"] = ottieni_logo_azienda_b64(db["ditta"])
+        json_str_top = json.dumps(db_top, indent=2, default=str)
         st.download_button(
             label="💾 Salva Storico (.json)",
             data=json_str_top,
@@ -482,12 +518,12 @@ if st.session_state.pagina_attiva != "home":
     st.divider()
 
 # ==============================================================================
-# SCHERMATA INIZIALE: PULSANTI GRANDI TUTTI DELLA STESSA DIMENSIONE
+# SCHERMATA INIZIALE: LOGO PROGRAMMA (logo_app.png) + PULSANTI GRANDI
 # ==============================================================================
 if st.session_state.pagina_attiva == "home":
     col_logo, col_titolo = st.columns([1.2, 6], vertical_alignment="center")
     with col_logo:
-        mostra_logo_widget(db["ditta"], width=110)
+        mostra_logo_programma(width=110)
     with col_titolo:
         st.title("Gestione contabile semplice")
         st.caption(
@@ -539,11 +575,9 @@ if st.session_state.pagina_attiva == "home":
             if st.button("✅ Carica e Ripristina Storico", key="btn_carica_storico", type="primary"):
                 try:
                     loaded_data = json.load(uploaded_file)
-                    loaded_data.setdefault("ditta", {})
-                    if not loaded_data["ditta"].get("logo_b64"):
-                        loaded_data["ditta"]["logo_b64"] = ottieni_logo_b64(db["ditta"])
-                    st.session_state.db = loaded_data
-                    st.success("Storico caricato con successo!")
+                    st.session_state.db = normalizza_db(loaded_data)
+                    st.session_state.storico_caricato = True
+                    st.success("Storico caricato con successo! Ora tutte le sezioni mostrano i dati salvati.")
                     st.rerun()
                 except Exception as e:
                     st.error(f"Errore durante il caricamento del file: {e}")
@@ -551,8 +585,7 @@ if st.session_state.pagina_attiva == "home":
     with col_dl:
         st.write("")
         st.write("")
-        db_export = json.loads(json.dumps(db, default=str))
-        db_export.setdefault("ditta", {})["logo_b64"] = ottieni_logo_b64(db["ditta"])
+        db_export = normalizza_db(json.loads(json.dumps(db, default=str)))
         json_str_home = json.dumps(db_export, indent=2, default=str)
         st.download_button(
             label="⬇️ Scarica Storico Attuale (.json)",
@@ -564,11 +597,11 @@ if st.session_state.pagina_attiva == "home":
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ==============================================================================
-# 1. DATI DITTA INDIVIDUALE
+# 1. DATI DITTA INDIVIDUALE (USA LOGO AZIENDA: logo_azienda.png)
 # ==============================================================================
 elif st.session_state.pagina_attiva == "ditta":
     st.header("🏢 Dati Ditta Individuale & Intestazione Fattura")
-    st.info("Questi dati popolano automaticamente il riquadro superiore sinistro, l'area IBAN e il riquadro piè di pagina dello schema fattura.")
+    st.info("Questi dati e il logo aziendale (logo_azienda.png) popolano automaticamente il riquadro superiore sinistro, l'area IBAN e il riquadro piè di pagina dei documenti PDF.")
 
     with st.form("form_ditta"):
         col1, col2 = st.columns(2)
@@ -589,12 +622,12 @@ elif st.session_state.pagina_attiva == "ditta":
             telefono = st.text_input("Recapiti Telefonici (es. tel 06/... cell ...)", value=db["ditta"]["telefono"])
             pec = st.text_input("PEC / Email", value=db["ditta"]["pec"])
 
-        st.subheader("🖼️ Logo Aziendale (Persistente su App e PDF)")
-        mostra_logo_widget(db["ditta"], width=120)
-        logo_file = st.file_uploader("Aggiorna immagine Logo (PNG o JPG)", type=["png", "jpg", "jpeg"])
+        st.subheader("🖼️ Logo Aziendale per Documenti (logo_azienda.png)")
+        mostra_logo_azienda_widget(db["ditta"], width=120)
+        logo_file = st.file_uploader("Carica o sostituisci Logo Azienda per i documenti (PNG o JPG)", type=["png", "jpg", "jpeg"])
 
         if st.form_submit_button("💾 Salva Dati Ditta", type="primary"):
-            logo_b64_val = ottieni_logo_b64(db["ditta"])
+            logo_b64_val = ottieni_logo_azienda_b64(db["ditta"])
             if logo_file is not None:
                 logo_b64_val = base64.b64encode(logo_file.read()).decode("utf-8")
 
@@ -611,7 +644,8 @@ elif st.session_state.pagina_attiva == "ditta":
                 "telefono": telefono,
                 "logo_b64": logo_b64_val
             }
-            st.success("Dati della Ditta Individuale e logo salvati correttamente!")
+            st.session_state.storico_caricato = True
+            st.success("Dati della Ditta Individuale e logo aziendale salvati correttamente!")
             st.rerun()
 
 # ==============================================================================
@@ -620,7 +654,7 @@ elif st.session_state.pagina_attiva == "ditta":
 elif st.session_state.pagina_attiva == "clienti":
     st.header("👥 Anagrafica Clienti")
 
-    with st.expander("➕ Aggiungi Nuovo Cliente", expanded=len(db["clienti"]) == 0):
+    with st.expander("➕ Aggiungi Nuovo Cliente", expanded=False):
         with st.form("form_cliente", clear_on_submit=True):
             c1, c2 = st.columns(2)
             nome = c1.text_input("Spettabile / Ragione Sociale (es. condominio)*")
@@ -646,15 +680,24 @@ elif st.session_state.pagina_attiva == "clienti":
                         "pagamento": pagamento_pref,
                         "ritenuta_4": ritenuta_default
                     })
+                    st.session_state.storico_caricato = True
                     st.success(f"Cliente '{nome}' aggiunto!")
                     st.rerun()
                 else:
                     st.warning("Inserisci almeno la denominazione del cliente.")
 
     if db["clienti"]:
-        st.dataframe(pd.DataFrame(db["clienti"]), use_container_width=True, hide_index=True)
-    else:
-        st.info("Nessun cliente in anagrafica.")
+        st.subheader("Elenco Clienti")
+        for idx, cli in enumerate(db["clienti"]):
+            with st.container(border=True):
+                col_info, col_del = st.columns([5, 1], vertical_alignment="center")
+                col_info.write(
+                    f"**{cli.get('nome', '')}** | P.IVA/CF: `{cli.get('piva', '')}` | SDI: `{cli.get('sdi', '')}`\n"
+                    f"Indirizzo: {cli.get('indirizzo', '')}, {cli.get('cap', '')} {cli.get('citta', '')}"
+                )
+                if col_del.button("🗑️ Elimina", key=f"del_cli_{idx}"):
+                    db["clienti"].pop(idx)
+                    st.rerun()
 
 # ==============================================================================
 # 3. ANAGRAFICA FORNITORI
@@ -662,7 +705,7 @@ elif st.session_state.pagina_attiva == "clienti":
 elif st.session_state.pagina_attiva == "fornitori":
     st.header("🏭 Anagrafica Fornitori")
 
-    with st.expander("➕ Aggiungi Nuovo Fornitore", expanded=len(db["fornitori"]) == 0):
+    with st.expander("➕ Aggiungi Nuovo Fornitore", expanded=False):
         with st.form("form_fornitore", clear_on_submit=True):
             c1, c2 = st.columns(2)
             nome = c1.text_input("Ragione Sociale Fornitore*")
@@ -683,15 +726,24 @@ elif st.session_state.pagina_attiva == "fornitori":
                         "iban": iban,
                         "note": note
                     })
+                    st.session_state.storico_caricato = True
                     st.success(f"Fornitore '{nome}' aggiunto!")
                     st.rerun()
                 else:
                     st.warning("Inserisci la Ragione Sociale del fornitore.")
 
     if db["fornitori"]:
-        st.dataframe(pd.DataFrame(db["fornitori"]), use_container_width=True, hide_index=True)
-    else:
-        st.info("Nessun fornitore in anagrafica.")
+        st.subheader("Elenco Fornitori")
+        for idx, forn in enumerate(db["fornitori"]):
+            with st.container(border=True):
+                col_info, col_del = st.columns([5, 1], vertical_alignment="center")
+                col_info.write(
+                    f"**{forn.get('nome', '')}** | P.IVA/CF: `{forn.get('piva', '')}` | Categoria: *{forn.get('categoria', '')}*\n"
+                    f"Indirizzo: {forn.get('indirizzo', '')} | IBAN: `{forn.get('iban', '')}`"
+                )
+                if col_del.button("🗑️ Elimina", key=f"del_forn_{idx}"):
+                    db["fornitori"].pop(idx)
+                    st.rerun()
 
 # ==============================================================================
 # 4. MAGAZZINO
@@ -699,7 +751,7 @@ elif st.session_state.pagina_attiva == "fornitori":
 elif st.session_state.pagina_attiva == "magazzino":
     st.header("📦 Gestione Magazzino & Listino Interventi")
 
-    with st.expander("➕ Aggiungi Articolo / Prestazione", expanded=len(db["magazzino"]) == 0):
+    with st.expander("➕ Aggiungi Articolo / Prestazione", expanded=False):
         with st.form("form_magazzino", clear_on_submit=True):
             c1, c2, c3 = st.columns(3)
             codice = c1.text_input("Codice Articolo", value=f"ART-{len(db['magazzino'])+1:03d}")
@@ -724,17 +776,27 @@ elif st.session_state.pagina_attiva == "magazzino":
                         "iva": iva_default,
                         "giacenza": giacenza
                     })
+                    st.session_state.storico_caricato = True
                     st.success(f"Articolo '{descrizione}' salvato!")
                     st.rerun()
                 else:
                     st.warning("Inserisci una descrizione.")
 
     if db["magazzino"]:
-        df_mag = pd.DataFrame(db["magazzino"])
-        df_mag["Valore Giacenza (EUR)"] = df_mag["costo_acquisto"] * df_mag["giacenza"]
-        st.dataframe(df_mag, use_container_width=True, hide_index=True)
-    else:
-        st.info("Il magazzino è vuoto.")
+        st.subheader("Elenco Articoli / Listino")
+        for idx, art in enumerate(db["magazzino"]):
+            val_giac = float(art.get("costo_acquisto", 0.0)) * float(art.get("giacenza", 0.0))
+            with st.container(border=True):
+                col_info, col_del = st.columns([5, 1], vertical_alignment="center")
+                col_info.write(
+                    f"**`{art.get('codice', '')}` — {art.get('descrizione', '')}** ({art.get('tipo', '')})\n"
+                    f"Acquisto: **€ {float(art.get('costo_acquisto', 0.0)):.2f}** | "
+                    f"Vendita: **€ {float(art.get('prezzo_vendita', 0.0)):.2f}** | "
+                    f"IVA: `{art.get('iva', 10)}%` | Giacenza: **{art.get('giacenza', 0)}** | Valore: **€ {val_giac:.2f}**"
+                )
+                if col_del.button("🗑️ Elimina", key=f"del_mag_{idx}"):
+                    db["magazzino"].pop(idx)
+                    st.rerun()
 
 # ==============================================================================
 # 5. FATTURAZIONE VENDITA (ATTIVA)
@@ -745,12 +807,12 @@ elif st.session_state.pagina_attiva == "fatture_attive":
     tab1, tab2 = st.tabs(["➕ Nuova Fattura di Vendita", "📋 Registro Fatture Emesse & Stampa PDF"])
 
     with tab1:
-        if not db["clienti"]:
-            st.warning("⚠️ Inserisci almeno un cliente nella sezione 'Anagrafica Clienti' prima di emettere una fattura.")
-        else:
-            if "righe_fattura_attiva" not in st.session_state:
-                st.session_state.righe_fattura_attiva = []
+        if "righe_fattura_attiva" not in st.session_state:
+            st.session_state.righe_fattura_attiva = []
 
+        if not db["clienti"]:
+            st.caption("Nessun cliente in anagrafica: puoi caricare lo storico dalla Home o aggiungere un cliente.")
+        else:
             col1, col2, col3, col4 = st.columns(4)
             num_fatt = col1.text_input("Numero Fattura", value=f"{len(db['fatture_attive'])+1}/{str(datetime.now().year)[-2:]}")
             data_fatt = col2.date_input("Data Fattura", value=date.today())
@@ -870,29 +932,33 @@ elif st.session_state.pagina_attiva == "fatture_attive":
                                 if m["codice"] == r["codice_mag"] and "Fisico" in m["tipo"]:
                                     m["giacenza"] = max(0.0, m["giacenza"] - r["qta"])
 
+                    st.session_state.storico_caricato = True
                     st.session_state.righe_fattura_attiva = []
                     st.success(f"Fattura N. {num_fatt} registrata!")
                     st.rerun()
 
     with tab2:
         if db["fatture_attive"]:
-            df_fa = pd.DataFrame(db["fatture_attive"])
-            st.dataframe(df_fa[["numero", "data", "scadenza", "cliente_nome", "totale", "stato"]], use_container_width=True, hide_index=True)
-
-            st.subheader("🖨️ Stampa / Salva PDF Fattura")
-            sel_num = st.selectbox("Seleziona Fattura da esportare", [f["numero"] for f in db["fatture_attive"]])
-            fatt_selezionata = next(f for f in db["fatture_attive"] if f["numero"] == sel_num)
-
-            pdf_bytes = genera_pdf_documento("Fattura", fatt_selezionata, db["ditta"])
-            st.download_button(
-                label=f"📄 Scarica / Stampa PDF Fattura {sel_num}",
-                data=pdf_bytes,
-                file_name=f"Fattura_{sel_num.replace('/', '_')}.pdf",
-                mime="application/pdf",
-                type="primary"
-            )
-        else:
-            st.info("Nessuna fattura attiva registrata.")
+            st.subheader("Elenco Fatture Attive")
+            for idx, f in enumerate(db["fatture_attive"]):
+                with st.container(border=True):
+                    c_info, c_pdf, c_del = st.columns([3.5, 1.5, 1], vertical_alignment="center")
+                    c_info.write(
+                        f"**Fatt. {f.get('numero', '')}** — Cliente: **{f.get('cliente_nome', '')}**\n"
+                        f"Data: `{f.get('data', '')}` | Scad.: `{f.get('scadenza', '')}` | "
+                        f"Totale: **€ {float(f.get('totale', 0.0)):.2f}** | Stato: `{f.get('stato', '')}`"
+                    )
+                    pdf_bytes = genera_pdf_documento("Fattura", f, db["ditta"])
+                    c_pdf.download_button(
+                        label="📄 Scarica PDF",
+                        data=pdf_bytes,
+                        file_name=f"Fattura_{str(f.get('numero', '')).replace('/', '_')}.pdf",
+                        mime="application/pdf",
+                        key=f"dl_fa_{idx}"
+                    )
+                    if c_del.button("🗑️ Elimina", key=f"del_fa_{idx}"):
+                        db["fatture_attive"].pop(idx)
+                        st.rerun()
 
 # ==============================================================================
 # 6. FATTURAZIONE ACQUISTI (PASSIVA)
@@ -900,9 +966,9 @@ elif st.session_state.pagina_attiva == "fatture_attive":
 elif st.session_state.pagina_attiva == "fatture_passive":
     st.header("📥 Fatturazione Acquisti (Passiva)")
 
-    with st.expander("➕ Registra Nuova Fattura di Acquisto", expanded=True):
+    with st.expander("➕ Registra Nuova Fattura di Acquisto", expanded=False):
         if not db["fornitori"]:
-            st.warning("⚠️ Inserisci almeno un fornitore in 'Anagrafica Fornitori'.")
+            st.caption("Nessun fornitore in anagrafica: puoi caricare lo storico dalla Home o aggiungere un fornitore.")
         else:
             with st.form("form_acquisto", clear_on_submit=True):
                 c1, c2, c3 = st.columns(3)
@@ -942,6 +1008,7 @@ elif st.session_state.pagina_attiva == "fatture_passive":
                             for m in db["magazzino"]:
                                 if m["codice"] == cod_m:
                                     m["giacenza"] += qta_carico
+                        st.session_state.storico_caricato = True
                         st.success("Fattura passiva registrata!")
                         st.rerun()
                     else:
@@ -949,7 +1016,17 @@ elif st.session_state.pagina_attiva == "fatture_passive":
 
     if db["fatture_passive"]:
         st.subheader("Registro Fatture Passive")
-        st.dataframe(pd.DataFrame(db["fatture_passive"]), use_container_width=True, hide_index=True)
+        for idx, fp in enumerate(db["fatture_passive"]):
+            with st.container(border=True):
+                col_info, col_del = st.columns([5, 1], vertical_alignment="center")
+                col_info.write(
+                    f"**Fatt. {fp.get('numero', '')}** — Fornitore: **{fp.get('fornitore', '')}** | {fp.get('descrizione', '')}\n"
+                    f"Data: `{fp.get('data', '')}` | Scad.: `{fp.get('scadenza', '')}` | "
+                    f"Totale: **€ {float(fp.get('totale', 0.0)):.2f}** | Stato: `{fp.get('stato', '')}`"
+                )
+                if col_del.button("🗑️ Elimina", key=f"del_fp_{idx}"):
+                    db["fatture_passive"].pop(idx)
+                    st.rerun()
 
 # ==============================================================================
 # 7. SCADENZARIO
@@ -957,48 +1034,51 @@ elif st.session_state.pagina_attiva == "fatture_passive":
 elif st.session_state.pagina_attiva == "scadenzario":
     st.header("📅 Scadenzario Incassi e Pagamenti")
 
-    incassi_aperti = [f for f in db["fatture_attive"] if f["stato"] == "Da Incassare"]
-    pagamenti_aperti = [f for f in db["fatture_passive"] if f["stato"] == "Da Pagare"]
+    incassi_aperti = [f for f in db["fatture_attive"] if f.get("stato") == "Da Incassare"]
+    pagamenti_aperti = [f for f in db["fatture_passive"] if f.get("stato") == "Da Pagare"]
 
-    tot_incassare = sum(f["totale"] for f in incassi_aperti)
-    tot_pagare = sum(f["totale"] for f in pagamenti_aperti)
+    tot_incassare = sum(float(f.get("totale", 0.0)) for f in incassi_aperti)
+    tot_pagare = sum(float(f.get("totale", 0.0)) for f in pagamenti_aperti)
     saldo_previsto = tot_incassare - tot_pagare
 
-    m1, m2, m3 = st.columns(3)
-    m1.metric("🟢 Crediti da Incassare", f"€ {tot_incassare:.2f}")
-    m2.metric("🔴 Debiti da Pagare", f"€ {tot_pagare:.2f}")
-    m3.metric("⚖️ Saldo Netto Previsionale", f"€ {saldo_previsto:.2f}")
+    if st.session_state.storico_caricato or db["fatture_attive"] or db["fatture_passive"]:
+        m1, m2, m3 = st.columns(3)
+        m1.metric("🟢 Crediti da Incassare", f"€ {tot_incassare:.2f}")
+        m2.metric("🔴 Debiti da Pagare", f"€ {tot_pagare:.2f}")
+        m3.metric("⚖️ Saldo Netto Previsionale", f"€ {saldo_previsto:.2f}")
 
-    st.divider()
-    col_sx, col_dx = st.columns(2)
+        st.divider()
+        col_sx, col_dx = st.columns(2)
 
-    with col_sx:
-        st.subheader("🟢 Scadenze Clienti (Da Incassare)")
-        if incassi_aperti:
+        with col_sx:
+            st.subheader("🟢 Scadenze Clienti (Da Incassare)")
             for idx, f in enumerate(db["fatture_attive"]):
-                if f["stato"] == "Da Incassare":
+                if f.get("stato") == "Da Incassare":
                     with st.container(border=True):
-                        st.write(f"**Fatt. {f['numero']}** - {f['cliente_nome']}")
-                        st.write(f"Scadenza: `{f['scadenza']}` | Importo: **€ {f['totale']:.2f}**")
-                        if st.button(f"✅ Segna come Incassata ({f['numero']})", key=f"inc_{idx}"):
+                        st.write(f"**Fatt. {f.get('numero', '')}** - {f.get('cliente_nome', '')}")
+                        st.write(f"Scadenza: `{f.get('scadenza', '')}` | Importo: **€ {float(f.get('totale', 0.0)):.2f}**")
+                        b1, b2 = st.columns(2)
+                        if b1.button("✅ Incassata", key=f"inc_{idx}"):
                             db["fatture_attive"][idx]["stato"] = "Incassata"
                             st.rerun()
-        else:
-            st.success("Nessun credito in sospeso!")
+                        if b2.button("🗑️ Elimina", key=f"del_sc_inc_{idx}"):
+                            db["fatture_attive"].pop(idx)
+                            st.rerun()
 
-    with col_dx:
-        st.subheader("🔴 Scadenze Fornitori (Da Pagare)")
-        if pagamenti_aperti:
+        with col_dx:
+            st.subheader("🔴 Scadenze Fornitori (Da Pagare)")
             for idx, f in enumerate(db["fatture_passive"]):
-                if f["stato"] == "Da Pagare":
+                if f.get("stato") == "Da Pagare":
                     with st.container(border=True):
-                        st.write(f"**Fatt. {f['numero']}** - {f['fornitore']}")
-                        st.write(f"Scadenza: `{f['scadenza']}` | Importo: **€ {f['totale']:.2f}**")
-                        if st.button(f"✅ Segna come Pagata ({f['numero']})", key=f"pag_{idx}"):
+                        st.write(f"**Fatt. {f.get('numero', '')}** - {f.get('fornitore', '')}")
+                        st.write(f"Scadenza: `{f.get('scadenza', '')}` | Importo: **€ {float(f.get('totale', 0.0)):.2f}**")
+                        b1, b2 = st.columns(2)
+                        if b1.button("✅ Pagata", key=f"pag_{idx}"):
                             db["fatture_passive"][idx]["stato"] = "Pagata"
                             st.rerun()
-        else:
-            st.success("Nessun pagamento in sospeso!")
+                        if b2.button("🗑️ Elimina", key=f"del_sc_pag_{idx}"):
+                            db["fatture_passive"].pop(idx)
+                            st.rerun()
 
 # ==============================================================================
 # 8. PREVENTIVI
@@ -1009,12 +1089,12 @@ elif st.session_state.pagina_attiva == "preventivi":
     tab_p1, tab_p2 = st.tabs(["➕ Nuovo Preventivo (Offerta)", "📂 Archivio Preventivi & Conversione"])
 
     with tab_p1:
-        if not db["clienti"]:
-            st.warning("⚠️ Inserisci almeno un cliente in 'Anagrafica Clienti'.")
-        else:
-            if "righe_preventivo" not in st.session_state:
-                st.session_state.righe_preventivo = []
+        if "righe_preventivo" not in st.session_state:
+            st.session_state.righe_preventivo = []
 
+        if not db["clienti"]:
+            st.caption("Nessun cliente in anagrafica: puoi caricare lo storico dalla Home o aggiungere un cliente.")
+        else:
             c1, c2, c3 = st.columns(3)
             num_prev = c1.text_input("Numero Offerta / Preventivo", value=f"{len(db['preventivi'])+1}/{str(datetime.now().year)[-2:]}")
             data_prev = c2.date_input("Data Offerta", value=date.today())
@@ -1077,6 +1157,7 @@ elif st.session_state.pagina_attiva == "preventivi":
                         "stato": "In Attesa",
                         "note": note_p
                     })
+                    st.session_state.storico_caricato = True
                     st.session_state.righe_preventivo = []
                     st.success(f"Preventivo {num_prev} salvato!")
                     st.rerun()
@@ -1085,25 +1166,25 @@ elif st.session_state.pagina_attiva == "preventivi":
         if db["preventivi"]:
             for idx, p in enumerate(db["preventivi"]):
                 with st.container(border=True):
-                    c_info, c_act1, c_act2 = st.columns([3, 1.5, 1.5])
-                    c_info.write(f"**Offerta {p['numero']}** | Cliente: **{p['cliente_nome']}** | Data: {p['data']}")
-                    c_info.write(f"Totale: **€ {p['totale']:.2f}** | Stato: `{p['stato']}`")
+                    c_info, c_act1, c_act2, c_del = st.columns([3, 1.3, 1.4, 0.9], vertical_alignment="center")
+                    c_info.write(f"**Offerta {p.get('numero', '')}** | Cliente: **{p.get('cliente_nome', '')}** | Data: {p.get('data', '')}")
+                    c_info.write(f"Totale: **€ {float(p.get('totale', 0.0)):.2f}** | Stato: `{p.get('stato', '')}`")
 
                     pdf_prev = genera_pdf_documento("Preventivo", p, db["ditta"])
                     c_act1.download_button(
-                        label="📄 Scarica PDF",
+                        label="📄 PDF",
                         data=pdf_prev,
-                        file_name=f"Preventivo_{p['numero'].replace('/', '_')}.pdf",
+                        file_name=f"Preventivo_{str(p.get('numero', '')).replace('/', '_')}.pdf",
                         mime="application/pdf",
                         key=f"dl_prev_{idx}"
                     )
 
-                    if p["stato"] != "Fatturato":
-                        if c_act2.button("🔄 Converti in Fattura", key=f"conv_{idx}"):
+                    if p.get("stato") != "Fatturato":
+                        if c_act2.button("🔄 Converti", key=f"conv_{idx}"):
                             nuovo_num_fatt = f"{len(db['fatture_attive'])+1}/{str(datetime.now().year)[-2:]}"
                             nuova_fatt_da_prev = p.copy()
                             nuova_fatt_da_prev["numero"] = nuovo_num_fatt
-                            nuova_fatt_da_prev["rif_offerta"] = p["numero"]
+                            nuova_fatt_da_prev["rif_offerta"] = p.get("numero", "")
                             nuova_fatt_da_prev["data"] = date.today().strftime("%d/%m/%Y")
                             nuova_fatt_da_prev["scadenza"] = (date.today() + timedelta(days=30)).strftime("%d/%m/%Y")
                             nuova_fatt_da_prev["intestazione_corpo"] = "Vi rimettiamo regolare fattura per :"
@@ -1111,7 +1192,9 @@ elif st.session_state.pagina_attiva == "preventivi":
                             nuova_fatt_da_prev["stato"] = "Da Incassare"
                             db["fatture_attive"].append(nuova_fatt_da_prev)
                             db["preventivi"][idx]["stato"] = "Fatturato"
-                            st.success(f"Convertito nella Fattura N. {nuovo_num_fatt} con Riferimento Offerta {p['numero']}!")
+                            st.success(f"Convertito nella Fattura N. {nuovo_num_fatt} con Riferimento Offerta {p.get('numero', '')}!")
                             st.rerun()
-        else:
-            st.info("Nessun preventivo in archivio.")
+
+                    if c_del.button("🗑️ Elimina", key=f"del_prev_{idx}"):
+                        db["preventivi"].pop(idx)
+                        st.rerun()
