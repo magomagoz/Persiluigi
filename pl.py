@@ -64,7 +64,7 @@ st.markdown("""
 
     /* Dicitura sotto l'icona */
     [class*="st-key-tile_"] button p {
-        font-size: 1.35rem !important;
+        font-size: 1.45rem !important;
         font-weight: 800 !important;
         line-height: 1.25 !important;
         margin: 0 !important;
