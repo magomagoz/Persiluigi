@@ -64,7 +64,7 @@ st.markdown("""
 
     /* Dicitura sotto l'icona */
     [class*="st-key-tile_"] button p {
-        font-size: 1.45rem !important;
+        font-size: 1.05rem !important;
         font-weight: 800 !important;
         line-height: 1.25 !important;
         margin: 0 !important;
@@ -72,7 +72,7 @@ st.markdown("""
 
     /* Icona grande al centro */
     [class*="st-key-tile_"] button p::first-line {
-        font-size: 1.8rem !important;
+        font-size: 2.8rem !important;
         line-height: 1.45 !important;
     }
 
@@ -88,7 +88,7 @@ st.markdown("""
 
     .storico-box {
         background-color: #ffffff;
-        padding: 10px;
+        padding: 20px;
         border-radius: 14px;
         border: 1px solid #e2e8f0;
         box-shadow: 0 3px 10px rgba(15, 23, 42, 0.05);
@@ -96,6 +96,39 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
+
+# --- HELPER LOGO PERSISTENTE ---
+LOGO_CANDIDATES = ["logo_azienda.png", "logo_azienda.jpg", "logo_azienda.jpeg", "logo_app.png"]
+
+def carica_logo_locale_b64():
+    for nome_file in LOGO_CANDIDATES:
+        if os.path.exists(nome_file):
+            try:
+                with open(nome_file, "rb") as f:
+                    return base64.b64encode(f.read()).decode("utf-8")
+            except Exception:
+                pass
+    return ""
+
+def ottieni_logo_b64(ditta_data):
+    logo_salvato = ditta_data.get("logo_b64", "")
+    if logo_salvato:
+        return logo_salvato
+    return carica_logo_locale_b64()
+
+def mostra_logo_widget(ditta_data, width=110):
+    logo_b64 = ottieni_logo_b64(ditta_data)
+    if logo_b64:
+        try:
+            img_bytes = base64.b64decode(logo_b64)
+            st.image(img_bytes, width=width)
+            return
+        except Exception:
+            pass
+    for nome_file in LOGO_CANDIDATES:
+        if os.path.exists(nome_file):
+            st.image(Image.open(nome_file), width=width)
+            return
 
 # --- INIZIALIZZAZIONE STATO ---
 def init_db():
@@ -114,7 +147,7 @@ def init_db():
                 "iban": "IT83Q0760103200001053005003",
                 "pec": "",
                 "telefono": "tel 06/263011 cell 3924532719 - 388/9339564",
-                "logo_b64": ""
+                "logo_b64": carica_logo_locale_b64()
             },
             "clienti": [],
             "fornitori": [],
@@ -123,6 +156,9 @@ def init_db():
             "fatture_passive": [],
             "preventivi": []
         }
+    else:
+        if not st.session_state.db.get("ditta", {}).get("logo_b64"):
+            st.session_state.db.setdefault("ditta", {})["logo_b64"] = carica_logo_locale_b64()
 
 init_db()
 db = st.session_state.db
@@ -160,7 +196,7 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
     pdf.rect(x0, y0, w_sx_top, h_top)
     pdf.rect(x0 + w_sx_top, y0, w_dx_top, h_top)
 
-    logo_b64 = ditta_data.get("logo_b64", "")
+    logo_b64 = ottieni_logo_b64(ditta_data)
     if logo_b64:
         try:
             img_bytes = base64.b64decode(logo_b64)
@@ -451,8 +487,7 @@ if st.session_state.pagina_attiva != "home":
 if st.session_state.pagina_attiva == "home":
     col_logo, col_titolo = st.columns([1.2, 6], vertical_alignment="center")
     with col_logo:
-        if os.path.exists("logo_app.png"):
-            st.image(Image.open("logo_app.png"), width=110)
+        mostra_logo_widget(db["ditta"], width=110)
     with col_titolo:
         st.title("Gestione contabile semplice")
         st.caption(
@@ -504,6 +539,9 @@ if st.session_state.pagina_attiva == "home":
             if st.button("✅ Carica e Ripristina Storico", key="btn_carica_storico", type="primary"):
                 try:
                     loaded_data = json.load(uploaded_file)
+                    loaded_data.setdefault("ditta", {})
+                    if not loaded_data["ditta"].get("logo_b64"):
+                        loaded_data["ditta"]["logo_b64"] = ottieni_logo_b64(db["ditta"])
                     st.session_state.db = loaded_data
                     st.success("Storico caricato con successo!")
                     st.rerun()
@@ -513,7 +551,9 @@ if st.session_state.pagina_attiva == "home":
     with col_dl:
         st.write("")
         st.write("")
-        json_str_home = json.dumps(db, indent=2, default=str)
+        db_export = json.loads(json.dumps(db, default=str))
+        db_export.setdefault("ditta", {})["logo_b64"] = ottieni_logo_b64(db["ditta"])
+        json_str_home = json.dumps(db_export, indent=2, default=str)
         st.download_button(
             label="⬇️ Scarica Storico Attuale (.json)",
             data=json_str_home,
@@ -549,11 +589,12 @@ elif st.session_state.pagina_attiva == "ditta":
             telefono = st.text_input("Recapiti Telefonici (es. tel 06/... cell ...)", value=db["ditta"]["telefono"])
             pec = st.text_input("PEC / Email", value=db["ditta"]["pec"])
 
-        st.subheader("🖼️ Logo Aziendale (Riquadro in alto a sinistra)")
-        logo_file = st.file_uploader("Carica immagine Logo (PNG o JPG)", type=["png", "jpg", "jpeg"])
+        st.subheader("🖼️ Logo Aziendale (Persistente su App e PDF)")
+        mostra_logo_widget(db["ditta"], width=120)
+        logo_file = st.file_uploader("Aggiorna immagine Logo (PNG o JPG)", type=["png", "jpg", "jpeg"])
 
         if st.form_submit_button("💾 Salva Dati Ditta", type="primary"):
-            logo_b64_val = db["ditta"].get("logo_b64", "")
+            logo_b64_val = ottieni_logo_b64(db["ditta"])
             if logo_file is not None:
                 logo_b64_val = base64.b64encode(logo_file.read()).decode("utf-8")
 
@@ -570,7 +611,8 @@ elif st.session_state.pagina_attiva == "ditta":
                 "telefono": telefono,
                 "logo_b64": logo_b64_val
             }
-            st.success("Dati della Ditta Individuale salvati correttamente!")
+            st.success("Dati della Ditta Individuale e logo salvati correttamente!")
+            st.rerun()
 
 # ==============================================================================
 # 2. ANAGRAFICA CLIENTI
