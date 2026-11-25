@@ -36,8 +36,8 @@ st.markdown("""
         border-radius: 16px !important;
         border: none !important;
         color: #ffffff !important;
-        font-size: 3.05rem !important;
-        font-weight: 700 !important;
+        font-size: 1.35rem !important;
+        font-weight: 900 !important;
         white-space: pre-wrap !important;
         line-height: 1.35 !important;
         padding: 14px !important;
