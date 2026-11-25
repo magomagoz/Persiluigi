@@ -498,7 +498,7 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
 
 # --- BARRA SUPERIORE NELLE SEZIONI INTERNE ---
 if st.session_state.pagina_attiva != "home":
-    top_l, col_logo, col_titolo, top_r = st.columns([1, 1, 6, 1])
+    top_l, col_logo, col_titolo, top_r = st.columns([1.5, 1.5, 5, 1.5])
     with top_l:
         if st.button("⬅️ Torna alla Home", key="btn_back_home"):
             vai_a("home")
@@ -513,11 +513,7 @@ if st.session_state.pagina_attiva != "home":
         st.caption(
             f"{db['ditta'].get('denominazione', '')} — {db['ditta'].get('titolare', '')} | "
             "Ditta individuale"
-        )
-    
-    
-    
-    
+        ) 
     
     with top_r:
         db_top = json.loads(json.dumps(db, default=str))
