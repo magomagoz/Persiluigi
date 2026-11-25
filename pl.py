@@ -7,24 +7,72 @@ import os
 from datetime import datetime, date, timedelta
 from fpdf import FPDF
 
-# --- CONFIGURAZIONE PAGINA ---
+# --- CONFIGURAZIONE PAGINA (SIDEBAR CHIUSA) ---
 st.set_page_config(
     page_title="Gestionale Ditta Individuale",
     page_icon="📊",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
-# --- CSS PERSONALIZZATO ---
+# --- CSS: NASCONDE SIDEBAR + STILE PULSANTI QUADRATI COLORATI ---
 st.markdown("""
     <style>
+    [data-testid="stSidebar"] {display: none !important;}
+    [data-testid="stSidebarCollapsedControl"] {display: none !important;}
+    [data-testid="collapsedControl"] {display: none !important;}
+
     .main {background-color: #f8f9fa;}
-    .stButton>button {width: 100%; border-radius: 6px; font-weight: 600;}
+    .stButton>button {
+        border-radius: 8px;
+        font-weight: 600;
+    }
+
+    /* Pulsanti grandi quadrati della schermata iniziale */
+    [class*="st-key-tile_"] button {
+        height: 145px !important;
+        width: 100% !important;
+        border-radius: 16px !important;
+        border: none !important;
+        color: #ffffff !important;
+        font-size: 1.05rem !important;
+        font-weight: 700 !important;
+        white-space: pre-wrap !important;
+        line-height: 1.35 !important;
+        padding: 14px !important;
+        box-shadow: 0 6px 14px rgba(15, 23, 42, 0.14) !important;
+        transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+    }
+    [class*="st-key-tile_"] button:hover {
+        transform: translateY(-3px) !important;
+        box-shadow: 0 10px 20px rgba(15, 23, 42, 0.22) !important;
+    }
+
+    /* Colori distinti per ciascuno degli 8 pulsanti */
+    .st-key-tile_1 button { background: linear-gradient(135deg, #1e3a8a, #2563eb) !important; }
+    .st-key-tile_2 button { background: linear-gradient(135deg, #0f766e, #14b8a6) !important; }
+    .st-key-tile_3 button { background: linear-gradient(135deg, #b45309, #f59e0b) !important; }
+    .st-key-tile_4 button { background: linear-gradient(135deg, #5b21b6, #8b5cf6) !important; }
+    .st-key-tile_5 button { background: linear-gradient(135deg, #15803d, #22c55e) !important; }
+    .st-key-tile_6 button { background: linear-gradient(135deg, #be123c, #f43f5e) !important; }
+    .st-key-tile_7 button { background: linear-gradient(135deg, #0369a1, #0ea5e9) !important; }
+    .st-key-tile_8 button { background: linear-gradient(135deg, #334155, #64748b) !important; }
+
+    .storico-box {
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 14px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.05);
+        margin-top: 12px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# --- INIZIALIZZAZIONE STATO (DATABASE IN MEMORIA) ---
+# --- INIZIALIZZAZIONE STATO ---
 def init_db():
+    if "pagina_attiva" not in st.session_state:
+        st.session_state.pagina_attiva = "home"
     if "db" not in st.session_state:
         st.session_state.db = {
             "ditta": {
@@ -51,6 +99,10 @@ def init_db():
 init_db()
 db = st.session_state.db
 
+def vai_a(sezione):
+    st.session_state.pagina_attiva = sezione
+    st.rerun()
+
 def fmt_eur(val):
     if val is None or val == 0:
         return "-"
@@ -62,19 +114,15 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
     pdf.add_page()
     pdf.set_auto_page_break(auto=False)
 
-    # Coordinate principali della griglia (margini 15mm, larghezza totale 180mm)
     x0 = 15
     y0 = 15
     w_tot = 180
 
-    # Colori ispirati allo schema allegato
     blu_logo = (25, 65, 120)
     grigio_banda = (135, 138, 142)
     nero = (20, 20, 20)
 
-    # ---------------------------------------------------------
-    # 1. RIQUADRO SUPERIORE (Altezza 46mm): Logo SX | Spettabile DX
-    # ---------------------------------------------------------
+    # 1. Riquadro superiore: Logo SX | Spettabile DX
     h_top = 46
     w_sx_top = 68
     w_dx_top = w_tot - w_sx_top
@@ -84,7 +132,6 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
     pdf.rect(x0, y0, w_sx_top, h_top)
     pdf.rect(x0 + w_sx_top, y0, w_dx_top, h_top)
 
-    # Logo a sinistra (se caricato dall'utente, altrimenti testo stilizzato)
     logo_b64 = ditta_data.get("logo_b64", "")
     if logo_b64:
         try:
@@ -107,7 +154,6 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
         pdf.set_font("Times", "BI", 12)
         pdf.cell(w_sx_top - 4, 8, f"di {ditta_data.get('titolare', '')}", align="C", fill=True)
 
-    # Destinatario "Spettabile" a destra
     x_spett = x0 + w_sx_top + 2
     x_val = x0 + w_sx_top + 48
     pdf.set_text_color(*nero)
@@ -144,9 +190,7 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
     pdf.set_xy(x_val, y0 + 41)
     pdf.cell(62, 5, doc_data.get("cliente_sdi", ""))
 
-    # ---------------------------------------------------------
-    # 2. RIGA METADATI (Altezza 12mm): Data | FATTURA | Riferimento Offerta
-    # ---------------------------------------------------------
+    # 2. Riga metadati
     y1 = y0 + h_top
     h_meta = 12
     w_c1 = 55
@@ -173,9 +217,7 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
     pdf.set_xy(x0 + w_c1 + w_c2 + 1.5, y1 + 6.5)
     pdf.cell(w_c3 - 3, 5, doc_data.get("rif_offerta", ""), align="L")
 
-    # ---------------------------------------------------------
-    # 3. RIGA REGOLAMENTO E IBAN (Altezza 15mm)
-    # ---------------------------------------------------------
+    # 3. Riga regolamento e IBAN
     y2 = y1 + h_meta
     h_pag = 15
     w_pag_sx = 92
@@ -199,9 +241,7 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
     pdf.set_xy(x0 + w_pag_sx + 1.5, y2 + 10)
     pdf.cell(w_pag_dx - 3, 4.5, f"IBAN: {ditta_data.get('iban', '')}")
 
-    # ---------------------------------------------------------
-    # 4. FASCIA GRIGIA SUPERIORE + INTESTAZIONE TABELLA Q.TÀ / DESCRIZIONE
-    # ---------------------------------------------------------
+    # 4. Fascia grigia + intestazione tabella q.tà / descrizione
     y3 = y2 + h_pag
     h_banda1 = 4.5
     pdf.set_fill_color(*grigio_banda)
@@ -220,21 +260,17 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
     pdf.set_xy(x0 + w_qta, y4 + 0.5)
     pdf.cell(w_desc, 4.5, "descrizione", align="C")
 
-    # ---------------------------------------------------------
-    # 5. CORPO CENTRALE DESCRIZIONE (Altezza 104mm)
-    # ---------------------------------------------------------
+    # 5. Corpo centrale descrizione
     y5 = y4 + h_th
     h_body = 104
     pdf.rect(x0, y5, w_qta, h_body)
     pdf.rect(x0 + w_qta, y5, w_desc, h_body)
 
-    # Intestazione standard "Vi rimettiamo regolare fattura per :"
     pdf.set_font("Times", "B", 9.5)
     pdf.set_xy(x0 + w_qta + 1.5, y5 + 4)
     frase_intro = doc_data.get("intestazione_corpo", "Vi rimettiamo regolare fattura per :" if tipo_doc == "Fattura" else "Vi rimettiamo nostra migliore offerta per :")
     pdf.cell(w_desc - 3, 5, frase_intro)
 
-    # Elenco righe
     curr_y = y5 + 16
     pdf.set_font("Helvetica", "B", 9)
     for r in doc_data.get("righe", []):
@@ -249,16 +285,13 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
         pdf.cell(w_desc - 3, 5, r.get("descrizione", ""))
         curr_y += 5.2
 
-    # Dicitura finale in basso nel corpo (es. "saldo" o note)
     dicitura_finale = doc_data.get("note", "saldo")
     if dicitura_finale:
         pdf.set_font("Times", "B", 9.5)
         pdf.set_xy(x0 + w_qta + 1.5, y5 + 58)
         pdf.cell(w_desc - 3, 5, dicitura_finale)
 
-    # ---------------------------------------------------------
-    # 6. FASCIA GRIGIA INFERIORE + RIEPILOGO FISCALE (Imponibile | IVA | Totale)
-    # ---------------------------------------------------------
+    # 6. Fascia grigia inferiore + riepilogo fiscale
     y6 = y5 + h_body
     h_banda2 = 7
     pdf.set_fill_color(*grigio_banda)
@@ -267,11 +300,10 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
     y7 = y6 + h_banda2
     h_tot_hdr = 5.5
     h_tot_body = 16.5
-    w_t1 = 48   # Imponibile
-    w_t2 = 46   # IVA
-    w_t3 = w_tot - w_t1 - w_t2  # totale fattura
+    w_t1 = 48
+    w_t2 = 46
+    w_t3 = w_tot - w_t1 - w_t2
 
-    # Intestazioni colonne totali
     pdf.rect(x0, y7, w_t1, h_tot_hdr)
     pdf.rect(x0 + w_t1, y7, w_t2, h_tot_hdr)
     pdf.rect(x0 + w_t1 + w_t2, y7, w_t3, h_tot_hdr)
@@ -284,7 +316,6 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
     pdf.set_xy(x0 + w_t1 + w_t2, y7 + 0.5)
     pdf.cell(w_t3, 4.5, "totale fattura" if tipo_doc == "Fattura" else "totale preventivo", align="C")
 
-    # Box valori totali
     y8 = y7 + h_tot_hdr
     pdf.rect(x0, y8, w_t1, h_tot_body)
     pdf.rect(x0 + w_t1, y8, w_t2, h_tot_body)
@@ -303,7 +334,6 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
     rit_imp = doc_data.get("rit_imp", 0.0)
     totale_finale = doc_data.get("totale", 0.0)
 
-    # Riga 1 (Aliquota 4%)
     pdf.set_font("Times", "", 9.5)
     pdf.set_xy(x0 + 14, y8 + 0.8)
     pdf.cell(6, 4.8, "€")
@@ -318,7 +348,6 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
     pdf.cell(6, 4.8, "€")
     pdf.cell(52, 4.8, fmt_eur(tot_4), align="R")
 
-    # Riga 2 (Aliquota principale: es. 10% o 22%)
     pdf.set_xy(x0 + 14, y8 + 5.8)
     pdf.cell(6, 4.8, "€")
     pdf.cell(26, 4.8, fmt_eur(imp_std), align="R")
@@ -332,7 +361,6 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
     pdf.cell(6, 4.8, "€")
     pdf.cell(52, 4.8, fmt_eur(tot_std), align="R")
 
-    # Riga 3 (Ritenuta d'acconto 4% e Netto a pagare)
     pdf.set_xy(x0 + 14, y8 + 10.8)
     pdf.cell(32, 4.8, f"- RIT {int(rit_perc)}%" if rit_perc > 0 else "")
 
@@ -345,9 +373,7 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
     pdf.cell(6, 4.8, "€")
     pdf.cell(52, 4.8, fmt_eur(totale_finale), align="R")
 
-    # ---------------------------------------------------------
-    # 7. PIÈ DI PAGINA RIQUADRATO IN BASSO A SINISTRA (Dati Ditta)
-    # ---------------------------------------------------------
+    # 7. Piè di pagina riquadrato in basso a sinistra
     y9 = y8 + h_tot_body
     h_foot = 23
     w_foot = 112
@@ -372,56 +398,102 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
 
     return bytes(pdf.output())
 
-
-# --- SIDEBAR: MENU E SALVATAGGIO / CARICAMENTO FILE ---
-with st.sidebar:
-    st.title("💼 Contabilità Pro")
-    st.caption(f"{db['ditta']['denominazione']} - {db['ditta']['titolare']}")
-    
-    menu = st.radio(
-        "Menu Principale",
-        [
-            "1. Dati Ditta Individuale",
-            "2. Anagrafica Clienti",
-            "3. Anagrafica Fornitori",
-            "4. Magazzino",
-            "5. Fatturazione Vendita (Attiva)",
-            "6. Fatturazione Acquisti (Passiva)",
-            "7. Scadenzario",
-            "8. Preventivi"
-        ]
-    )
-    
+# --- BARRA SUPERIORE NELLE SEZIONI INTERNE ---
+if st.session_state.pagina_attiva != "home":
+    top_l, top_c, top_r = st.columns([1.4, 3.6, 1.4])
+    with top_l:
+        if st.button("⬅️ Torna alla Home", key="btn_back_home"):
+            vai_a("home")
+    with top_c:
+        st.caption(f"**{db['ditta'].get('denominazione', 'Ditta Individuale')}** — {db['ditta'].get('titolare', '')}")
+    with top_r:
+        json_str_top = json.dumps(db, indent=2, default=str)
+        st.download_button(
+            label="💾 Salva Storico (.json)",
+            data=json_str_top,
+            file_name=f"contabilita_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
+            mime="application/json",
+            key="dl_top_json"
+        )
     st.divider()
-    st.subheader("💾 Salvataggio & Ripristino")
-    
-    json_str = json.dumps(db, indent=2, default=str)
-    nome_file = f"contabilita_{datetime.now().strftime('%Y%m%d_%H%M')}.json"
-    st.download_button(
-        label="⬇️ Salva Archivio su File (.json)",
-        data=json_str,
-        file_name=nome_file,
-        mime="application/json"
-    )
-    
-    uploaded_file = st.file_uploader("⬆️ Carica Archivio (.json)", type=["json"])
-    if uploaded_file is not None:
-        if st.button("Conferma Caricamento Dati"):
-            try:
-                loaded_data = json.load(uploaded_file)
-                st.session_state.db = loaded_data
-                st.success("Archivio caricato con successo!")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Errore nel file: {e}")
 
 # ==============================================================================
-# 1. SCHERMATA DATI DITTA INDIVIDUALE
+# SCHERMATA INIZIALE: PULSANTI GRANDI QUADRATI COLORATI + CARICAMENTO STORICO
 # ==============================================================================
-if menu == "1. Dati Ditta Individuale":
+if st.session_state.pagina_attiva == "home":
+    st.title("💼 Gestionale Ditta Individuale")
+    st.caption(f"{db['ditta'].get('denominazione', '')} — {db['ditta'].get('titolare', '')} | Seleziona un'area operativa:")
+
+    riga1 = st.columns(4, gap="medium")
+    with riga1[0]:
+        if st.button("🏢\n\nDati Ditta\nIndividuale", key="tile_1"):
+            vai_a("ditta")
+    with riga1[1]:
+        if st.button("👥\n\nAnagrafica\nClienti", key="tile_2"):
+            vai_a("clienti")
+    with riga1[2]:
+        if st.button("🏭\n\nAnagrafica\nFornitori", key="tile_3"):
+            vai_a("fornitori")
+    with riga1[3]:
+        if st.button("📦\n\nMagazzino\ne Listino", key="tile_4"):
+            vai_a("magazzino")
+
+    st.write("")
+
+    riga2 = st.columns(4, gap="medium")
+    with riga2[0]:
+        if st.button("🧾\n\nFatturazione\nVendita (Attiva)", key="tile_5"):
+            vai_a("fatture_attive")
+    with riga2[1]:
+        if st.button("📥\n\nFatturazione\nAcquisti (Passiva)", key="tile_6"):
+            vai_a("fatture_passive")
+    with riga2[2]:
+        if st.button("📅\n\nScadenzario\nIncassi/Pagamenti", key="tile_7"):
+            vai_a("scadenzario")
+    with riga2[3]:
+        if st.button("📝\n\nPreventivi\ne Offerte", key="tile_8"):
+            vai_a("preventivi")
+
+    st.write("")
+
+    # Sezione Caricamento / Salvataggio File Storico posizionata sotto i pulsanti
+    st.markdown('<div class="storico-box">', unsafe_allow_html=True)
+    st.subheader("📂 Gestione File dello Storico (.json)")
+    st.write("Carica un file dello storico salvato in precedenza oppure esporta una copia aggiornata dell'archivio corrente.")
+
+    col_up, col_dl = st.columns([2.2, 1.2], gap="large")
+    with col_up:
+        uploaded_file = st.file_uploader("Carica file storico (.json)", type=["json"], key="home_uploader")
+        if uploaded_file is not None:
+            if st.button("✅ Carica e Ripristina Storico", key="btn_carica_storico", type="primary"):
+                try:
+                    loaded_data = json.load(uploaded_file)
+                    st.session_state.db = loaded_data
+                    st.success("Storico caricato con successo!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Errore durante il caricamento del file: {e}")
+
+    with col_dl:
+        st.write("")
+        st.write("")
+        json_str_home = json.dumps(db, indent=2, default=str)
+        st.download_button(
+            label="⬇️ Scarica Storico Attuale (.json)",
+            data=json_str_home,
+            file_name=f"contabilita_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
+            mime="application/json",
+            key="btn_scarica_storico"
+        )
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# ==============================================================================
+# 1. DATI DITTA INDIVIDUALE
+# ==============================================================================
+elif st.session_state.pagina_attiva == "ditta":
     st.header("🏢 Dati Ditta Individuale & Intestazione Fattura")
     st.info("Questi dati popolano automaticamente il riquadro superiore sinistro, l'area IBAN e il riquadro piè di pagina dello schema fattura.")
-    
+
     with st.form("form_ditta"):
         col1, col2 = st.columns(2)
         with col1:
@@ -440,15 +512,15 @@ if menu == "1. Dati Ditta Individuale":
             iban = st.text_input("IBAN per bonifici", value=db["ditta"]["iban"])
             telefono = st.text_input("Recapiti Telefonici (es. tel 06/... cell ...)", value=db["ditta"]["telefono"])
             pec = st.text_input("PEC / Email", value=db["ditta"]["pec"])
-            
+
         st.subheader("🖼️ Logo Aziendale (Riquadro in alto a sinistra)")
         logo_file = st.file_uploader("Carica immagine Logo (PNG o JPG)", type=["png", "jpg", "jpeg"])
-        
+
         if st.form_submit_button("💾 Salva Dati Ditta", type="primary"):
             logo_b64_val = db["ditta"].get("logo_b64", "")
             if logo_file is not None:
                 logo_b64_val = base64.b64encode(logo_file.read()).decode("utf-8")
-                
+
             db["ditta"] = {
                 "denominazione": denominazione,
                 "titolare": titolare,
@@ -467,9 +539,9 @@ if menu == "1. Dati Ditta Individuale":
 # ==============================================================================
 # 2. ANAGRAFICA CLIENTI
 # ==============================================================================
-elif menu == "2. Anagrafica Clienti":
+elif st.session_state.pagina_attiva == "clienti":
     st.header("👥 Anagrafica Clienti")
-    
+
     with st.expander("➕ Aggiungi Nuovo Cliente", expanded=len(db["clienti"]) == 0):
         with st.form("form_cliente", clear_on_submit=True):
             c1, c2 = st.columns(2)
@@ -477,12 +549,12 @@ elif menu == "2. Anagrafica Clienti":
             indirizzo = c1.text_input("Via e Civico (es. Bruno Rizzieri 40/66)")
             cap = c1.text_input("CAP (es. 00173)")
             citta = c1.text_input("Città (es. Roma)")
-            
+
             piva = c2.text_input("Codice Fiscale / Partita IVA*")
             sdi = c2.text_input("Codice SDI (es. JHBM40P)", value="0000000")
             pagamento_pref = c2.text_input("Regolamento Default", value="rimessa diretta")
             ritenuta_default = c2.checkbox("Cliente soggetto a Ritenuta d'Acconto 4% (es. Condominio)", value=True)
-            
+
             if st.form_submit_button("Salva Cliente"):
                 if nome:
                     db["clienti"].append({
@@ -500,7 +572,7 @@ elif menu == "2. Anagrafica Clienti":
                     st.rerun()
                 else:
                     st.warning("Inserisci almeno la denominazione del cliente.")
-                    
+
     if db["clienti"]:
         st.dataframe(pd.DataFrame(db["clienti"]), use_container_width=True, hide_index=True)
     else:
@@ -509,9 +581,9 @@ elif menu == "2. Anagrafica Clienti":
 # ==============================================================================
 # 3. ANAGRAFICA FORNITORI
 # ==============================================================================
-elif menu == "3. Anagrafica Fornitori":
+elif st.session_state.pagina_attiva == "fornitori":
     st.header("🏭 Anagrafica Fornitori")
-    
+
     with st.expander("➕ Aggiungi Nuovo Fornitore", expanded=len(db["fornitori"]) == 0):
         with st.form("form_fornitore", clear_on_submit=True):
             c1, c2 = st.columns(2)
@@ -521,7 +593,7 @@ elif menu == "3. Anagrafica Fornitori":
             indirizzo = c2.text_input("Indirizzo Completo")
             iban = c2.text_input("IBAN Fornitore")
             note = c2.text_input("Note / Contatti")
-            
+
             if st.form_submit_button("Salva Fornitore"):
                 if nome:
                     db["fornitori"].append({
@@ -537,7 +609,7 @@ elif menu == "3. Anagrafica Fornitori":
                     st.rerun()
                 else:
                     st.warning("Inserisci la Ragione Sociale del fornitore.")
-                    
+
     if db["fornitori"]:
         st.dataframe(pd.DataFrame(db["fornitori"]), use_container_width=True, hide_index=True)
     else:
@@ -546,23 +618,23 @@ elif menu == "3. Anagrafica Fornitori":
 # ==============================================================================
 # 4. MAGAZZINO
 # ==============================================================================
-elif menu == "4. Magazzino":
+elif st.session_state.pagina_attiva == "magazzino":
     st.header("📦 Gestione Magazzino & Listino Interventi")
-    
+
     with st.expander("➕ Aggiungi Articolo / Prestazione", expanded=len(db["magazzino"]) == 0):
         with st.form("form_magazzino", clear_on_submit=True):
             c1, c2, c3 = st.columns(3)
             codice = c1.text_input("Codice Articolo", value=f"ART-{len(db['magazzino'])+1:03d}")
             descrizione = c2.text_input("Descrizione Articolo / Intervento*")
             tipo = c3.selectbox("Tipologia", ["Prodotto Fisico (con giacenza)", "Intervento / Prestazione"])
-            
+
             c4, c5, c6 = st.columns(3)
             prezzo_acquisto = c4.number_input("Costo Acquisto Unitario (EUR)", min_value=0.0, step=1.0)
             prezzo_vendita = c5.number_input("Prezzo Vendita Unitario (EUR)", min_value=0.0, step=1.0)
             iva_default = c6.selectbox("Aliquota IVA (%)", [10, 22, 4, 0], index=0)
-            
+
             giacenza = st.number_input("Giacenza Iniziale (unità)", min_value=0.0, value=0.0, step=1.0)
-            
+
             if st.form_submit_button("Salva in Magazzino"):
                 if descrizione:
                     db["magazzino"].append({
@@ -578,7 +650,7 @@ elif menu == "4. Magazzino":
                     st.rerun()
                 else:
                     st.warning("Inserisci una descrizione.")
-                    
+
     if db["magazzino"]:
         df_mag = pd.DataFrame(db["magazzino"])
         df_mag["Valore Giacenza (EUR)"] = df_mag["costo_acquisto"] * df_mag["giacenza"]
@@ -589,14 +661,14 @@ elif menu == "4. Magazzino":
 # ==============================================================================
 # 5. FATTURAZIONE VENDITA (ATTIVA)
 # ==============================================================================
-elif menu == "5. Fatturazione Vendita (Attiva)":
+elif st.session_state.pagina_attiva == "fatture_attive":
     st.header("🧾 Fatturazione Vendita (Attiva)")
-    
+
     tab1, tab2 = st.tabs(["➕ Nuova Fattura di Vendita", "📋 Registro Fatture Emesse & Stampa PDF"])
-    
+
     with tab1:
         if not db["clienti"]:
-            st.warning("⚠️ Inserisci almeno un cliente in 'Anagrafica Clienti' prima di emettere una fattura.")
+            st.warning("⚠️ Inserisci almeno un cliente nella sezione 'Anagrafica Clienti' prima di emettere una fattura.")
         else:
             if "righe_fattura_attiva" not in st.session_state:
                 st.session_state.righe_fattura_attiva = []
@@ -606,21 +678,21 @@ elif menu == "5. Fatturazione Vendita (Attiva)":
             data_fatt = col2.date_input("Data Fattura", value=date.today())
             rif_offerta = col3.text_input("Riferimento Offerta", value="")
             scad_fatt = col4.date_input("Scadenza Pagamento", value=date.today() + timedelta(days=30))
-            
+
             c_cli, c_reg = st.columns([2, 1])
             nomi_clienti = [c["nome"] for c in db["clienti"]]
             cliente_scelto_nome = c_cli.selectbox("Spettabile Cliente", nomi_clienti)
             cliente_obj = next(c for c in db["clienti"] if c["nome"] == cliente_scelto_nome)
             regolamento = c_reg.text_input("Regolamento", value=cliente_obj.get("pagamento", "rimessa diretta"))
-            
+
             intestazione_corpo = st.text_input("Intestazione Corpo Descrizione", value="Vi rimettiamo regolare fattura per :")
-            
+
             st.subheader("Aggiungi Righe Descrizione")
             c_art, c_qta, c_prz, c_iva = st.columns([3, 1, 1.5, 1])
-            
+
             opzioni_mag = ["Inserimento Libero"] + [f"{m['codice']} - {m['descrizione']}" for m in db["magazzino"]]
             scelta_mag = c_art.selectbox("Articolo da Magazzino o Testo Libero", opzioni_mag)
-            
+
             if scelta_mag != "Inserimento Libero":
                 art_obj = next(m for m in db["magazzino"] if f"{m['codice']} - {m['descrizione']}" == scelta_mag)
                 desc_riga = st.text_input("Testo riga descrizione", value=art_obj["descrizione"])
@@ -630,11 +702,11 @@ elif menu == "5. Fatturazione Vendita (Attiva)":
                 desc_riga = st.text_input("Testo riga descrizione (es. sostituzione cerniere del cancello civ 66)")
                 prz_default = 0.0
                 iva_default = 10
-                
+
             qta_riga = c_qta.number_input("Q.tà (0 se solo testo)", min_value=0.0, value=0.0, step=1.0)
             prz_riga = c_prz.number_input("Importo Riga (EUR)", min_value=0.0, value=prz_default, step=10.0)
             iva_riga = c_iva.selectbox("Aliquota IVA %", [10, 22, 4, 0], index=[10, 22, 4, 0].index(iva_default))
-            
+
             if st.button("➕ Aggiungi Riga"):
                 if desc_riga:
                     st.session_state.righe_fattura_attiva.append({
@@ -649,12 +721,11 @@ elif menu == "5. Fatturazione Vendita (Attiva)":
             if st.session_state.righe_fattura_attiva:
                 df_righe = pd.DataFrame(st.session_state.righe_fattura_attiva)
                 st.dataframe(df_righe[["qta", "descrizione", "prezzo", "iva"]], use_container_width=True, hide_index=True)
-                
+
                 if st.button("🗑️ Svuota Righe"):
                     st.session_state.righe_fattura_attiva = []
                     st.rerun()
 
-                # Calcolo Imponibili divisi tra IVA 4% e IVA ordinaria (10% o 22%)
                 imp_4 = 0.0
                 iva_4 = 0.0
                 imp_std = 0.0
@@ -678,15 +749,15 @@ elif menu == "5. Fatturazione Vendita (Attiva)":
                 applica_rit = st.checkbox("Applica Ritenuta d'Acconto 4% (- RIT 4%)", value=cliente_obj.get("ritenuta_4", True))
                 rit_perc = 4.0 if applica_rit else 0.0
                 rit_imp = round(imponibile_tot * 0.04, 2) if applica_rit else 0.0
-                
+
                 totale_doc = round(imponibile_tot + iva_4 + iva_std - rit_imp, 2)
-                
+
                 st.markdown(f"### Totale Netto Fattura: **€ {totale_doc:.2f}** (Imponibile: € {imponibile_tot:.2f} | IVA: € {iva_4+iva_std:.2f} | -RIT 4%: € {rit_imp:.2f})")
-                
+
                 col_p1, col_p2 = st.columns(2)
                 note_fatt = col_p1.text_input("Dicitura finale nel corpo fattura", value="saldo")
                 stato_pag = col_p2.selectbox("Stato Pagamento", ["Da Incassare", "Incassata"])
-                
+
                 if st.button("💾 Registra Fattura e Scarica Magazzino", type="primary"):
                     nuova_fatt = {
                         "numero": num_fatt,
@@ -714,13 +785,13 @@ elif menu == "5. Fatturazione Vendita (Attiva)":
                         "note": note_fatt
                     }
                     db["fatture_attive"].append(nuova_fatt)
-                    
+
                     for r in st.session_state.righe_fattura_attiva:
                         if r["codice_mag"] and r["qta"] > 0:
                             for m in db["magazzino"]:
                                 if m["codice"] == r["codice_mag"] and "Fisico" in m["tipo"]:
                                     m["giacenza"] = max(0.0, m["giacenza"] - r["qta"])
-                                    
+
                     st.session_state.righe_fattura_attiva = []
                     st.success(f"Fattura N. {num_fatt} registrata!")
                     st.rerun()
@@ -729,11 +800,11 @@ elif menu == "5. Fatturazione Vendita (Attiva)":
         if db["fatture_attive"]:
             df_fa = pd.DataFrame(db["fatture_attive"])
             st.dataframe(df_fa[["numero", "data", "scadenza", "cliente_nome", "totale", "stato"]], use_container_width=True, hide_index=True)
-            
+
             st.subheader("🖨️ Stampa / Salva PDF Fattura")
             sel_num = st.selectbox("Seleziona Fattura da esportare", [f["numero"] for f in db["fatture_attive"]])
             fatt_selezionata = next(f for f in db["fatture_attive"] if f["numero"] == sel_num)
-            
+
             pdf_bytes = genera_pdf_documento("Fattura", fatt_selezionata, db["ditta"])
             st.download_button(
                 label=f"📄 Scarica / Stampa PDF Fattura {sel_num}",
@@ -748,9 +819,9 @@ elif menu == "5. Fatturazione Vendita (Attiva)":
 # ==============================================================================
 # 6. FATTURAZIONE ACQUISTI (PASSIVA)
 # ==============================================================================
-elif menu == "6. Fatturazione Acquisti (Passiva)":
+elif st.session_state.pagina_attiva == "fatture_passive":
     st.header("📥 Fatturazione Acquisti (Passiva)")
-    
+
     with st.expander("➕ Registra Nuova Fattura di Acquisto", expanded=True):
         if not db["fornitori"]:
             st.warning("⚠️ Inserisci almeno un fornitore in 'Anagrafica Fornitori'.")
@@ -760,20 +831,20 @@ elif menu == "6. Fatturazione Acquisti (Passiva)":
                 num_doc = c1.text_input("Numero Fattura Fornitore*")
                 data_doc = c2.date_input("Data Fattura", value=date.today())
                 scad_doc = c3.date_input("Scadenza Pagamento", value=date.today() + timedelta(days=30))
-                
+
                 forn_scelto = st.selectbox("Fornitore", [f["nome"] for f in db["fornitori"]])
                 descrizione = st.text_input("Descrizione Acquisto / Fornitura*")
-                
+
                 c4, c5, c6 = st.columns(3)
                 imponibile = c4.number_input("Imponibile (EUR)", min_value=0.0, step=10.0)
                 iva = c5.number_input("IVA (EUR)", min_value=0.0, step=2.0)
                 stato = c6.selectbox("Stato Pagamento", ["Da Pagare", "Pagata"])
-                
+
                 st.markdown("**Carico Magazzino (Opzionale)**")
                 cm1, cm2 = st.columns(2)
                 art_carico = cm1.selectbox("Aggiorna giacenza articolo", ["Nessuno"] + [f"{m['codice']} - {m['descrizione']}" for m in db["magazzino"]])
                 qta_carico = cm2.number_input("Quantità acquistata", min_value=0.0, value=0.0, step=1.0)
-                
+
                 if st.form_submit_button("💾 Registra Fattura Passiva"):
                     if num_doc and descrizione:
                         totale = round(imponibile + iva, 2)
@@ -797,7 +868,7 @@ elif menu == "6. Fatturazione Acquisti (Passiva)":
                         st.rerun()
                     else:
                         st.warning("Compila numero documento e descrizione.")
-                        
+
     if db["fatture_passive"]:
         st.subheader("Registro Fatture Passive")
         st.dataframe(pd.DataFrame(db["fatture_passive"]), use_container_width=True, hide_index=True)
@@ -805,24 +876,24 @@ elif menu == "6. Fatturazione Acquisti (Passiva)":
 # ==============================================================================
 # 7. SCADENZARIO
 # ==============================================================================
-elif menu == "7. Scadenzario":
+elif st.session_state.pagina_attiva == "scadenzario":
     st.header("📅 Scadenzario Incassi e Pagamenti")
-    
+
     incassi_aperti = [f for f in db["fatture_attive"] if f["stato"] == "Da Incassare"]
     pagamenti_aperti = [f for f in db["fatture_passive"] if f["stato"] == "Da Pagare"]
-    
+
     tot_incassare = sum(f["totale"] for f in incassi_aperti)
     tot_pagare = sum(f["totale"] for f in pagamenti_aperti)
     saldo_previsto = tot_incassare - tot_pagare
-    
+
     m1, m2, m3 = st.columns(3)
     m1.metric("🟢 Crediti da Incassare", f"€ {tot_incassare:.2f}")
     m2.metric("🔴 Debiti da Pagare", f"€ {tot_pagare:.2f}")
     m3.metric("⚖️ Saldo Netto Previsionale", f"€ {saldo_previsto:.2f}")
-    
+
     st.divider()
     col_sx, col_dx = st.columns(2)
-    
+
     with col_sx:
         st.subheader("🟢 Scadenze Clienti (Da Incassare)")
         if incassi_aperti:
@@ -836,7 +907,7 @@ elif menu == "7. Scadenzario":
                             st.rerun()
         else:
             st.success("Nessun credito in sospeso!")
-            
+
     with col_dx:
         st.subheader("🔴 Scadenze Fornitori (Da Pagare)")
         if pagamenti_aperti:
@@ -854,32 +925,32 @@ elif menu == "7. Scadenzario":
 # ==============================================================================
 # 8. PREVENTIVI
 # ==============================================================================
-elif menu == "8. Preventivi":
+elif st.session_state.pagina_attiva == "preventivi":
     st.header("📝 Gestione Preventivi & Conversione in Fattura")
-    
+
     tab_p1, tab_p2 = st.tabs(["➕ Nuovo Preventivo (Offerta)", "📂 Archivio Preventivi & Conversione"])
-    
+
     with tab_p1:
         if not db["clienti"]:
             st.warning("⚠️ Inserisci almeno un cliente in 'Anagrafica Clienti'.")
         else:
             if "righe_preventivo" not in st.session_state:
                 st.session_state.righe_preventivo = []
-                
+
             c1, c2, c3 = st.columns(3)
             num_prev = c1.text_input("Numero Offerta / Preventivo", value=f"{len(db['preventivi'])+1}/{str(datetime.now().year)[-2:]}")
             data_prev = c2.date_input("Data Offerta", value=date.today())
             validita_prev = c3.date_input("Valido fino al", value=date.today() + timedelta(days=15))
-            
+
             cliente_prev_nome = st.selectbox("Cliente Destinatario", [c["nome"] for c in db["clienti"]], key="prev_cli")
             cliente_prev_obj = next(c for c in db["clienti"] if c["nome"] == cliente_prev_nome)
-            
+
             cp1, cp2, cp3, cp4 = st.columns([3, 1, 1.5, 1])
             desc_p = cp1.text_input("Descrizione voce preventivo")
             qta_p = cp2.number_input("Q.tà", min_value=0.0, value=0.0, step=1.0, key="pqta")
             prz_p = cp3.number_input("Importo (EUR)", min_value=0.0, value=0.0, step=10.0, key="pprz")
             iva_p = cp4.selectbox("IVA %", [10, 22, 4, 0], index=0, key="piva")
-            
+
             if st.button("➕ Aggiungi Voce al Preventivo"):
                 if desc_p:
                     st.session_state.righe_preventivo.append({
@@ -890,18 +961,18 @@ elif menu == "8. Preventivi":
                         "iva": iva_p
                     })
                     st.rerun()
-                    
+
             if st.session_state.righe_preventivo:
                 df_rp = pd.DataFrame(st.session_state.righe_preventivo)
                 st.dataframe(df_rp[["qta", "descrizione", "prezzo", "iva"]], use_container_width=True, hide_index=True)
-                
+
                 imp_std_p = sum((r["qta"] if r["qta"] > 0 else 1.0) * r["prezzo"] for r in st.session_state.righe_preventivo)
                 iva_std_p = round(sum(((r["qta"] if r["qta"] > 0 else 1.0) * r["prezzo"]) * (r["iva"] / 100.0) for r in st.session_state.righe_preventivo), 2)
                 tot_p = round(imp_std_p + iva_std_p, 2)
-                
+
                 st.markdown(f"### Totale Preventivo: **€ {tot_p:.2f}**")
                 note_p = st.text_input("Note finali preventivo", value="")
-                
+
                 if st.button("💾 Salva Preventivo", type="primary"):
                     db["preventivi"].append({
                         "numero": num_prev,
@@ -939,7 +1010,7 @@ elif menu == "8. Preventivi":
                     c_info, c_act1, c_act2 = st.columns([3, 1.5, 1.5])
                     c_info.write(f"**Offerta {p['numero']}** | Cliente: **{p['cliente_nome']}** | Data: {p['data']}")
                     c_info.write(f"Totale: **€ {p['totale']:.2f}** | Stato: `{p['stato']}`")
-                    
+
                     pdf_prev = genera_pdf_documento("Preventivo", p, db["ditta"])
                     c_act1.download_button(
                         label="📄 Scarica PDF",
@@ -948,7 +1019,7 @@ elif menu == "8. Preventivi":
                         mime="application/pdf",
                         key=f"dl_prev_{idx}"
                     )
-                    
+
                     if p["stato"] != "Fatturato":
                         if c_act2.button("🔄 Converti in Fattura", key=f"conv_{idx}"):
                             nuovo_num_fatt = f"{len(db['fatture_attive'])+1}/{str(datetime.now().year)[-2:]}"
