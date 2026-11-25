@@ -454,10 +454,10 @@ if st.session_state.pagina_attiva == "home":
         if os.path.exists("logo_app.png"):
             st.image(Image.open("logo_app.png"), width=110)
     with col_titolo:
-        st.title("Easy Gest")
+        st.title("Gestione contabile semplice")
         st.caption(
             f"{db['ditta'].get('denominazione', '')} — {db['ditta'].get('titolare', '')} | "
-            "Gestione contabile ditta individuale"
+            "Ditta individuale"
         )
 
     riga1 = st.columns(4, gap="medium")
