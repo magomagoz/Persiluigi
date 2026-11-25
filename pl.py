@@ -64,7 +64,7 @@ st.markdown("""
 
     /* Dicitura sotto l'icona */
     [class*="st-key-tile_"] button p {
-        font-size: 1.15rem !important;
+        font-size: 1.25rem !important;
         font-weight: 800 !important;
         line-height: 1.25 !important;
         margin: 0 !important;
@@ -72,7 +72,7 @@ st.markdown("""
 
     /* Icona grande al centro */
     [class*="st-key-tile_"] button p::first-line {
-        font-size: 3.8rem !important;
+        font-size: 1.8rem !important;
         line-height: 1.45 !important;
     }
 
