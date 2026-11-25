@@ -206,6 +206,25 @@ def fmt_eur(val):
         return "-"
     return f"{val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
+def pulsante_elimina_sicuro(stato_key, etichetta_avviso, on_conferma, key_prefix):
+    if "conferma_elimina" not in st.session_state:
+        st.session_state.conferma_elimina = None
+
+    if st.session_state.conferma_elimina == stato_key:
+        st.warning(f"⚠️ {etichetta_avviso}")
+        c_ok, c_no = st.columns(2)
+        if c_ok.button("Conferma", key=f"{key_prefix}_ok", type="primary"):
+            st.session_state.conferma_elimina = None
+            on_conferma()
+            st.rerun()
+        if c_no.button("Annulla", key=f"{key_prefix}_no"):
+            st.session_state.conferma_elimina = None
+            st.rerun()
+    else:
+        if st.button("🗑️ Elimina", key=f"{key_prefix}_ask"):
+            st.session_state.conferma_elimina = stato_key
+            st.rerun()
+
 # --- FUNZIONE GENERAZIONE PDF SU SCHEMA ALLEGATO (USA LOGO AZIENDA) ---
 def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
     pdf = FPDF(orientation="P", unit="mm", format="A4")
@@ -706,9 +725,13 @@ elif st.session_state.pagina_attiva == "clienti":
                     f"**{cli.get('nome', '')}** | P.IVA/CF: `{cli.get('piva', '')}` | SDI: `{cli.get('sdi', '')}`\n"
                     f"Indirizzo: {cli.get('indirizzo', '')}, {cli.get('cap', '')} {cli.get('citta', '')}"
                 )
-                if col_del.button("🗑️ Elimina", key=f"del_cli_{idx}"):
-                    db["clienti"].pop(idx)
-                    st.rerun()
+                with col_del:
+                    pulsante_elimina_sicuro(
+                        stato_key=f"cli_{idx}_{cli.get('nome', '')}",
+                        etichetta_avviso=f"Eliminare il cliente '{cli.get('nome', '')}'?",
+                        on_conferma=lambda i=idx: db["clienti"].pop(i),
+                        key_prefix=f"del_cli_{idx}"
+                    )
 
 # ==============================================================================
 # 3. ANAGRAFICA FORNITORI
@@ -752,9 +775,13 @@ elif st.session_state.pagina_attiva == "fornitori":
                     f"**{forn.get('nome', '')}** | P.IVA/CF: `{forn.get('piva', '')}` | Categoria: *{forn.get('categoria', '')}*\n"
                     f"Indirizzo: {forn.get('indirizzo', '')} | IBAN: `{forn.get('iban', '')}`"
                 )
-                if col_del.button("🗑️ Elimina", key=f"del_forn_{idx}"):
-                    db["fornitori"].pop(idx)
-                    st.rerun()
+                with col_del:
+                    pulsante_elimina_sicuro(
+                        stato_key=f"forn_{idx}_{forn.get('nome', '')}",
+                        etichetta_avviso=f"Eliminare il fornitore '{forn.get('nome', '')}'?",
+                        on_conferma=lambda i=idx: db["fornitori"].pop(i),
+                        key_prefix=f"del_forn_{idx}"
+                    )
 
 # ==============================================================================
 # 4. MAGAZZINO
@@ -805,9 +832,13 @@ elif st.session_state.pagina_attiva == "magazzino":
                     f"Vendita: **€ {float(art.get('prezzo_vendita', 0.0)):.2f}** | "
                     f"IVA: `{art.get('iva', 10)}%` | Giacenza: **{art.get('giacenza', 0)}** | Valore: **€ {val_giac:.2f}**"
                 )
-                if col_del.button("🗑️ Elimina", key=f"del_mag_{idx}"):
-                    db["magazzino"].pop(idx)
-                    st.rerun()
+                with col_del:
+                    pulsante_elimina_sicuro(
+                        stato_key=f"mag_{idx}_{art.get('codice', '')}",
+                        etichetta_avviso=f"Eliminare l'articolo '{art.get('descrizione', '')}'?",
+                        on_conferma=lambda i=idx: db["magazzino"].pop(i),
+                        key_prefix=f"del_mag_{idx}"
+                    )
 
 # ==============================================================================
 # 5. FATTURAZIONE VENDITA (ATTIVA)
@@ -967,9 +998,13 @@ elif st.session_state.pagina_attiva == "fatture_attive":
                         mime="application/pdf",
                         key=f"dl_fa_{idx}"
                     )
-                    if c_del.button("🗑️ Elimina", key=f"del_fa_{idx}"):
-                        db["fatture_attive"].pop(idx)
-                        st.rerun()
+                    with c_del:
+                        pulsante_elimina_sicuro(
+                            stato_key=f"fa_{idx}_{f.get('numero', '')}",
+                            etichetta_avviso=f"Eliminare la fattura N. {f.get('numero', '')}?",
+                            on_conferma=lambda i=idx: db["fatture_attive"].pop(i),
+                            key_prefix=f"del_fa_{idx}"
+                        )
 
 # ==============================================================================
 # 6. FATTURAZIONE ACQUISTI (PASSIVA)
@@ -1035,9 +1070,13 @@ elif st.session_state.pagina_attiva == "fatture_passive":
                     f"Data: `{fp.get('data', '')}` | Scad.: `{fp.get('scadenza', '')}` | "
                     f"Totale: **€ {float(fp.get('totale', 0.0)):.2f}** | Stato: `{fp.get('stato', '')}`"
                 )
-                if col_del.button("🗑️ Elimina", key=f"del_fp_{idx}"):
-                    db["fatture_passive"].pop(idx)
-                    st.rerun()
+                with col_del:
+                    pulsante_elimina_sicuro(
+                        stato_key=f"fp_{idx}_{fp.get('numero', '')}",
+                        etichetta_avviso=f"Eliminare la fattura acquisto N. {fp.get('numero', '')}?",
+                        on_conferma=lambda i=idx: db["fatture_passive"].pop(i),
+                        key_prefix=f"del_fp_{idx}"
+                    )
 
 # ==============================================================================
 # 7. SCADENZARIO
@@ -1073,8 +1112,18 @@ elif st.session_state.pagina_attiva == "scadenzario":
                             db["fatture_attive"][idx]["stato"] = "Incassata"
                             st.rerun()
                         if b2.button("🗑️ Elimina", key=f"del_sc_inc_{idx}"):
-                            db["fatture_attive"].pop(idx)
+                            st.session_state.conferma_elimina = f"sc_inc_{idx}_{f.get('numero', '')}"
                             st.rerun()
+                        if st.session_state.conferma_elimina == f"sc_inc_{idx}_{f.get('numero', '')}":
+                            st.warning(f"⚠️ Eliminare la fattura {f.get('numero', '')}?")
+                            k1, k2 = st.columns(2)
+                            if k1.button("Conferma", key=f"sc_inc_ok_{idx}", type="primary"):
+                                st.session_state.conferma_elimina = None
+                                db["fatture_attive"].pop(idx)
+                                st.rerun()
+                            if k2.button("Annulla", key=f"sc_inc_no_{idx}"):
+                                st.session_state.conferma_elimina = None
+                                st.rerun()
 
         with col_dx:
             st.subheader("🔴 Scadenze Fornitori (Da Pagare)")
@@ -1088,8 +1137,18 @@ elif st.session_state.pagina_attiva == "scadenzario":
                             db["fatture_passive"][idx]["stato"] = "Pagata"
                             st.rerun()
                         if b2.button("🗑️ Elimina", key=f"del_sc_pag_{idx}"):
-                            db["fatture_passive"].pop(idx)
+                            st.session_state.conferma_elimina = f"sc_pag_{idx}_{f.get('numero', '')}"
                             st.rerun()
+                        if st.session_state.conferma_elimina == f"sc_pag_{idx}_{f.get('numero', '')}":
+                            st.warning(f"⚠️ Eliminare la fattura {f.get('numero', '')}?")
+                            k1, k2 = st.columns(2)
+                            if k1.button("Conferma", key=f"sc_pag_ok_{idx}", type="primary"):
+                                st.session_state.conferma_elimina = None
+                                db["fatture_passive"].pop(idx)
+                                st.rerun()
+                            if k2.button("Annulla", key=f"sc_pag_no_{idx}"):
+                                st.session_state.conferma_elimina = None
+                                st.rerun()
 
 # ==============================================================================
 # 8. PREVENTIVI
@@ -1206,6 +1265,11 @@ elif st.session_state.pagina_attiva == "preventivi":
                             st.success(f"Convertito nella Fattura N. {nuovo_num_fatt} con Riferimento Offerta {p.get('numero', '')}!")
                             st.rerun()
 
-                    if c_del.button("🗑️ Elimina", key=f"del_prev_{idx}"):
-                        db["preventivi"].pop(idx)
-                        st.rerun()
+                    with c_del:
+                        pulsante_elimina_sicuro(
+                            stato_key=f"prev_{idx}_{p.get('numero', '')}",
+                            etichetta_avviso=f"Eliminare il preventivo N. {p.get('numero', '')}?",
+                            on_conferma=lambda i=idx: db["preventivi"].pop(i),
+                            key_prefix=f"del_prev_{idx}"
+                        )
+
