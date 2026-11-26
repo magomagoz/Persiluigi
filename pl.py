@@ -8,6 +8,9 @@ from datetime import datetime, date, timedelta
 from fpdf import FPDF
 from PIL import Image
 import re
+import xml.etree.ElementTree as ET
+import zipfile
+import io
 
 def pulisci_testo(val):
     return "" if val is None else str(val).strip()
@@ -642,6 +645,168 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
     pdf.cell(w_foot - 3, 4.2, pdf_txt(ditta_data.get("telefono", ""), usa_uni))
 
     return bytes(pdf.output())
+
+def genera_xml_fatturapa(doc_data, ditta_data):
+    ns = "http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2"
+    ET.register_namespace("p", ns)
+    root = ET.Element(f"{{{ns}}}FatturaElettronica", attrib={"versione": "FPR12"})
+
+    def sub(parent, tag, text=None):
+        el = ET.SubElement(parent, f"{{{ns}}}{tag}")
+        if text is not None:
+            el.text = str(text)
+        return el
+
+    piva_ced = re.sub(r"\D", "", pulisci_testo(ditta_data.get("piva", ""))) or "00000000000"
+    cf_ced = pulisci_testo(ditta_data.get("cf", "")).upper() or piva_ced
+    num_fatt = pulisci_testo(doc_data.get("numero", "1"))
+    prog_invio = re.sub(r"[^A-Za-z0-9]", "", num_fatt)[:10] or "00001"
+
+    # Header
+    header = sub(root, "FatturaElettronicaHeader")
+    dati_trasm = sub(header, "DatiTrasmissione")
+    id_trasm = sub(dati_trasm, "IdTrasmittente")
+    sub(id_trasm, "IdPaese", "IT")
+    sub(id_trasm, "IdCodice", piva_ced)
+    sub(dati_trasm, "ProgressivoInvio", prog_invio)
+    sub(dati_trasm, "FormatoTrasmissione", "FPR12")
+
+    sdi_cli = pulisci_testo(doc_data.get("cliente_sdi", "")).upper()
+    if not re.fullmatch(r"[A-Z0-9]{7}", sdi_cli):
+        sdi_cli = "0000000"
+    sub(dati_trasm, "CodiceDestinatario", sdi_cli)
+
+    # CedentePrestatore (la tua ditta)
+    ced = sub(header, "CedentePrestatore")
+    ced_anag = sub(ced, "DatiAnagrafici")
+    ced_idf = sub(ced_anag, "IdFiscaleIVA")
+    sub(ced_idf, "IdPaese", "IT")
+    sub(ced_idf, "IdCodice", piva_ced)
+    if cf_ced:
+        sub(ced_anag, "CodiceFiscale", cf_ced)
+    ced_dati_anag = sub(ced_anag, "Anagrafica")
+    denom_ced = pulisci_testo(ditta_data.get("denominazione", ""))
+    tit_ced = pulisci_testo(ditta_data.get("titolare", ""))
+    if denom_ced:
+        sub(ced_dati_anag, "Denominazione", denom_ced)
+    elif tit_ced:
+        parti = tit_ced.split(" ", 1)
+        sub(ced_dati_anag, "Nome", parti[0])
+        sub(ced_dati_anag, "Cognome", parti[1] if len(parti) > 1 else parti[0])
+    sub(ced_anag, "RegimeFiscale", "RF01" if "Forfettario" not in pulisci_testo(ditta_data.get("regime", "")) else "RF19")
+
+    ced_sede = sub(ced, "Sede")
+    cap_citta_raw = pulisci_testo(ditta_data.get("cap_citta", ""))
+    m_cap = re.search(r"\b(\d{5})\b", cap_citta_raw)
+    cap_ced = m_cap.group(1) if m_cap else "00100"
+    citta_ced = re.sub(r"^\d{5}\s*[-–]?\s*", "", cap_citta_raw).strip() or "Roma"
+    sub(ced_sede, "Indirizzo", pulisci_testo(ditta_data.get("indirizzo", "")) or "N.D.")
+    sub(ced_sede, "CAP", cap_ced)
+    sub(ced_sede, "Comune", citta_ced)
+    sub(ced_sede, "Nazione", "IT")
+
+    # CessionarioCommittente (cliente)
+    cess = sub(header, "CessionarioCommittente")
+    cess_anag = sub(cess, "DatiAnagrafici")
+    cf_piva_cli = re.sub(r"\s+", "", pulisci_testo(doc_data.get("cliente_piva", ""))).upper()
+    if re.fullmatch(r"\d{11}", cf_piva_cli):
+        cess_idf = sub(cess_anag, "IdFiscaleIVA")
+        sub(cess_idf, "IdPaese", "IT")
+        sub(cess_idf, "IdCodice", cf_piva_cli)
+    elif cf_piva_cli:
+        sub(cess_anag, "CodiceFiscale", cf_piva_cli)
+
+    cess_dati_anag = sub(cess_anag, "Anagrafica")
+    sub(cess_dati_anag, "Denominazione", pulisci_testo(doc_data.get("cliente_nome", "")) or "Cliente")
+
+    cess_sede = sub(cess, "Sede")
+    cap_cli = pulisci_testo(doc_data.get("cliente_cap", ""))
+    if not re.fullmatch(r"\d{5}", cap_cli):
+        cap_cli = "00100"
+    sub(cess_sede, "Indirizzo", pulisci_testo(doc_data.get("cliente_indirizzo", "")) or "N.D.")
+    sub(cess_sede, "CAP", cap_cli)
+    sub(cess_sede, "Comune", pulisci_testo(doc_data.get("cliente_citta", "")) or "Roma")
+    sub(cess_sede, "Nazione", "IT")
+
+    # Body
+    body = sub(root, "FatturaElettronicaBody")
+    dati_gen = sub(body, "DatiGenerali")
+    dati_doc = sub(dati_gen, "DatiGeneraliDocumento")
+    sub(dati_doc, "TipoDocumento", "TD01")
+    sub(dati_doc, "Divisa", "EUR")
+
+    data_raw = pulisci_testo(doc_data.get("data", ""))
+    data_iso = date.today().strftime("%Y-%m-%d")
+    for fmt in ("%d/%m/%Y", "%Y-%m-%d"):
+        try:
+            data_iso = datetime.strptime(data_raw[:10], fmt).strftime("%Y-%m-%d")
+            break
+        except ValueError:
+            pass
+    sub(dati_doc, "Data", data_iso)
+    sub(dati_doc, "Numero", num_fatt)
+
+    rit_imp = float(doc_data.get("rit_imp", 0.0) or 0.0)
+    rit_perc = float(doc_data.get("rit_perc", 0.0) or 0.0)
+    if rit_imp > 0:
+        dati_rit = sub(dati_doc, "DatiRitenuta")
+        sub(dati_rit, "TipoRitenuta", "RT01")
+        sub(dati_rit, "ImportoRitenuta", f"{rit_imp:.2f}")
+        sub(dati_rit, "AliquotaRitenuta", f"{rit_perc:.2f}")
+        sub(dati_rit, "CausalePagamento", "A")
+
+    tot_doc = float(doc_data.get("totale", 0.0) or 0.0)
+    sub(dati_doc, "ImportoTotaleDocumento", f"{tot_doc:.2f}")
+
+    # Righe e riepilogo IVA per aliquota
+    dati_beni = sub(body, "DatiBeniServizi")
+    righe = doc_data.get("righe") or []
+    riep_map = {}
+
+    for idx_r, r in enumerate(righe, start=1):
+        qta_v = float(r.get("qta", 0.0) or 0.0)
+        prz_v = float(r.get("prezzo", 0.0) or 0.0)
+        iva_v = float(r.get("iva", 10) or 0.0)
+        molt = qta_v if qta_v > 0 else 1.0
+        prezzo_tot = round(molt * prz_v, 2)
+        prezzo_unit = round(prz_v, 2)
+
+        det = sub(dati_beni, "DettaglioLinee")
+        sub(det, "NumeroLinea", str(idx_r))
+        sub(det, "Descrizione", pulisci_testo(r.get("descrizione", "")) or "Fornitura / Lavorazione")
+        if qta_v > 0:
+            sub(det, "Quantita", f"{qta_v:.2f}")
+        sub(det, "PrezzoUnitario", f"{prezzo_unit:.2f}")
+        sub(det, "PrezzoTotale", f"{prezzo_tot:.2f}")
+        sub(det, "AliquotaIVA", f"{iva_v:.2f}")
+
+        riep_map[iva_v] = round(riep_map.get(iva_v, 0.0) + prezzo_tot, 2)
+
+    if not riep_map:
+        imp_std = float(doc_data.get("imp_std", 0.0) or 0.0)
+        al_std = float(doc_data.get("aliq_std", 10) or 10)
+        riep_map[al_std] = round(imp_std, 2)
+
+    for aliq, imp_al in riep_map.items():
+        imposta_al = round(imp_al * (aliq / 100.0), 2)
+        riep = sub(dati_beni, "DatiRiepilogo")
+        sub(riep, "AliquotaIVA", f"{aliq:.2f}")
+        sub(riep, "ImponibileImporto", f"{imp_al:.2f}")
+        sub(riep, "Imposta", f"{imposta_al:.2f}")
+        sub(riep, "EsigibilitaIVA", "I")
+
+    # DatiPagamento
+    iban_ced = re.sub(r"[\s\-]+", "", pulisci_testo(ditta_data.get("iban", ""))).upper()
+    dati_pag = sub(body, "DatiPagamento")
+    sub(dati_pag, "CondizioniPagamento", "TP02")
+    det_pag = sub(dati_pag, "DettaglioPagamento")
+    sub(det_pag, "ModalitaPagamento", "MP05" if iban_ced else "MP01")
+    sub(det_pag, "ImportoPagamento", f"{tot_doc:.2f}")
+    if iban_ced:
+        sub(det_pag, "IBAN", iban_ced)
+
+    xml_bytes = ET.tostring(root, encoding="utf-8", xml_declaration=True)
+    return xml_bytes
 
 # --- BARRA SUPERIORE NELLE SEZIONI INTERNE ---
 if st.session_state.pagina_attiva != "home":
@@ -1418,6 +1583,173 @@ elif st.session_state.pagina_attiva == "fatture_passive":
                     st.rerun()
             except Exception as e:
                 st.error(f"Errore lettura Excel fatture passive: {e}")
+
+        with st.expander("📄 Importa Fatture Passive da file XML / ZIP (FatturaPA)", expanded=False):
+            st.caption("Carica uno o più file `.xml` (anche `p7m` rinominati `.xml` se puliti) oppure un archivio `.zip` scaricato dal portale.")
+            files_xml_fp = st.file_uploader(
+                "Seleziona file XML o ZIP Fatture Passive",
+                type=["xml", "zip"],
+                accept_multiple_files=True,
+                key="xml_fp_up"
+            )
+    
+            def _strip_ns(tag):
+                return tag.split("}", 1)[-1] if "}" in tag else tag
+    
+            def _trova_testo(elem, percorso_tag):
+                curr = elem
+                for t in percorso_tag:
+                    if curr is None:
+                        return ""
+                    trovato = next((c for c in curr if _strip_ns(c.tag) == t), None)
+                    curr = trovato
+                return pulisci_testo(curr.text) if (curr is not None and curr.text) else ""
+    
+            def _parse_data_xml(s_data):
+                s = pulisci_testo(s_data)
+                if not s:
+                    return date.today().strftime("%d/%m/%Y")
+                for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
+                    try:
+                        return datetime.strptime(s[:10], fmt).strftime("%d/%m/%Y")
+                    except ValueError:
+                        pass
+                return s
+    
+            def _estrai_fattura_da_xml_bytes(raw_bytes, nome_file=""):
+                testo_xml = raw_bytes.decode("utf-8", errors="replace").lstrip("\ufeff").strip()
+                root = ET.fromstring(testo_xml.encode("utf-8"))
+    
+                # Cerca CedentePrestatore e FatturaElettronicaBody anche con namespace
+                cedente = None
+                corpi = []
+                for el in root.iter():
+                    nome_tag = _strip_ns(el.tag)
+                    if nome_tag == "CedentePrestatore" and cedente is None:
+                        cedente = el
+                    elif nome_tag == "FatturaElettronicaBody":
+                        corpi.append(el)
+    
+                forn_nome = ""
+                if cedente is not None:
+                    forn_nome = (
+                        _trova_testo(cedente, ["DatiAnagrafici", "Anagrafica", "Denominazione"])
+                        or " ".join([
+                            _trova_testo(cedente, ["DatiAnagrafici", "Anagrafica", "Nome"]),
+                            _trova_testo(cedente, ["DatiAnagrafici", "Anagrafica", "Cognome"])
+                        ]).strip()
+                    )
+    
+                risultati = []
+                for body in corpi:
+                    dati_gen = next((c for c in body if _strip_ns(c.tag) == "DatiGenerali"), None)
+                    dati_doc = next((c for c in dati_gen if _strip_ns(c.tag) == "DatiGeneraliDocumento"), None) if dati_gen is not None else None
+    
+                    num_doc = _trova_testo(dati_doc, ["Numero"]) if dati_doc is not None else ""
+                    data_doc = _parse_data_xml(_trova_testo(dati_doc, ["Data"])) if dati_doc is not None else date.today().strftime("%d/%m/%Y")
+                    tot_doc_raw = _trova_testo(dati_doc, ["ImportoTotaleDocumento"]) if dati_doc is not None else ""
+    
+                    # Scadenza pagamento (se presente in DatiPagamento)
+                    scad_doc = (date.today() + timedelta(days=30)).strftime("%d/%m/%Y")
+                    for el in body.iter():
+                        if _strip_ns(el.tag) == "DettaglioPagamento":
+                            dt_scad = _trova_testo(el, ["DataScadenzaPagamento"])
+                            if dt_scad:
+                                scad_doc = _parse_data_xml(dt_scad)
+                                break
+    
+                    # Descrizioni righe
+                    descrizioni = []
+                    for el in body.iter():
+                        if _strip_ns(el.tag) == "DettaglioLinee":
+                            d_riga = _trova_testo(el, ["Descrizione"])
+                            if d_riga:
+                                descrizioni.append(d_riga)
+                    desc_unica = " | ".join(descrizioni[:3]) if descrizioni else (f"Fattura XML {nome_file}" if nome_file else "Fattura XML")
+                    if len(desc_unica) > 180:
+                        desc_unica = desc_unica[:177] + "..."
+    
+                    # Riepilogo IVA e imponibile
+                    imp_tot = 0.0
+                    iva_tot = 0.0
+                    trovato_riep = False
+                    for el in body.iter():
+                        if _strip_ns(el.tag) == "DatiRiepilogo":
+                            trovato_riep = True
+                            imp_s = _trova_testo(el, ["ImponibileImporto"])
+                            iva_s = _trova_testo(el, ["Imposta"])
+                            try:
+                                imp_tot += float(imp_s.replace(",", ".")) if imp_s else 0.0
+                            except ValueError:
+                                pass
+                            try:
+                                iva_tot += float(iva_s.replace(",", ".")) if iva_s else 0.0
+                            except ValueError:
+                                pass
+    
+                    if not trovato_riep:
+                        for el in body.iter():
+                            if _strip_ns(el.tag) == "DettaglioLinee":
+                                pt_s = _trova_testo(el, ["PrezzoTotale"])
+                                al_s = _trova_testo(el, ["AliquotaIVA"])
+                                try:
+                                    pt_v = float(pt_s.replace(",", ".")) if pt_s else 0.0
+                                    al_v = float(al_s.replace(",", ".")) if al_s else 0.0
+                                    imp_tot += pt_v
+                                    iva_tot += round(pt_v * (al_v / 100.0), 2)
+                                except ValueError:
+                                    pass
+    
+                    try:
+                        tot_val = float(tot_doc_raw.replace(",", ".")) if tot_doc_raw else round(imp_tot + iva_tot, 2)
+                    except ValueError:
+                        tot_val = round(imp_tot + iva_tot, 2)
+    
+                    risultati.append({
+                        "numero": num_doc or nome_file or "XML-DOC",
+                        "data": data_doc,
+                        "scadenza": scad_doc,
+                        "fornitore": forn_nome or "Fornitore XML",
+                        "descrizione": desc_unica,
+                        "imponibile": round(imp_tot, 2),
+                        "iva": round(iva_tot, 2),
+                        "totale": round(tot_val, 2),
+                        "stato": "Da Pagare"
+                    })
+                return risultati
+    
+            if files_xml_fp and st.button("📥 Importa XML / ZIP Selezionati", key="btn_xml_fp", type="primary"):
+                imp_ok, errori_xml = 0, []
+                for up_f in files_xml_fp:
+                    nome_up = up_f.name
+                    raw_up = up_f.read()
+                    try:
+                        if nome_up.lower().endswith(".zip"):
+                            with zipfile.ZipFile(io.BytesIO(raw_up)) as zf:
+                                for member in zf.namelist():
+                                    if member.lower().endswith(".xml") and not member.startswith("__MACOSX"):
+                                        try:
+                                            estratti = _estrai_fattura_da_xml_bytes(zf.read(member), member)
+                                            for voce_fp in estratti:
+                                                db["fatture_passive"].append(voce_fp)
+                                                imp_ok += 1
+                                        except Exception as e_m:
+                                            errori_xml.append(f"{nome_up} -> {member}: {e_m}")
+                        else:
+                            estratti = _estrai_fattura_da_xml_bytes(raw_up, nome_up)
+                            for voce_fp in estratti:
+                                db["fatture_passive"].append(voce_fp)
+                                imp_ok += 1
+                    except Exception as e_f:
+                        errori_xml.append(f"{nome_up}: {e_f}")
+    
+                if imp_ok > 0:
+                    st.session_state.storico_caricato = True
+                st.success(f"Fatture passive importate da XML/ZIP: {imp_ok}")
+                if errori_xml:
+                    st.warning("Alcuni file non sono stati letti:\n- " + "\n- ".join(errori_xml))
+                if imp_ok > 0:
+                    st.rerun()
     
     with st.expander("➕ Registra Nuova Fattura di Acquisto", expanded=False):
         if not db["fornitori"]:
