@@ -2216,7 +2216,7 @@ elif st.session_state.pagina_attiva == "preventivi":
                         key=f"dl_prev_{idx}"
                     )
 
-                                        if p.get("stato") != "Fatturato":
+                    if p.get("stato") != "Fatturato":
                         if c_act2.button("🔄 Converti", key=f"conv_{idx}"):
                             ok1, e1 = valida_cap(p.get("cliente_cap", ""))
                             ok2, e2 = valida_cf_o_piva(p.get("cliente_piva", ""), obbligatorio=False)
