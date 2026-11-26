@@ -607,7 +607,7 @@ if st.session_state.pagina_attiva == "home":
         if st.button("🏭\n\nAnagrafica Fornitori", key="tile_3"):
             vai_a("fornitori")
     with riga1[3]:
-        if st.button("📦\n\nMagazzino e Listino", key="tile_4"):
+        if st.button("📦\n\nMagazzino", key="tile_4"):
             vai_a("magazzino")
 
     st.write("")
@@ -911,7 +911,7 @@ elif st.session_state.pagina_attiva == "magazzino":
                     st.warning("Inserisci una descrizione.")
 
     if db["magazzino"]:
-        st.subheader("Elenco Articoli / Listino")
+        st.subheader("Elenco Articoli")
         for idx, art in enumerate(db["magazzino"]):
             val_giac = float(art.get("costo_acquisto", 0.0)) * float(art.get("giacenza", 0.0))
             with st.container(border=True):
