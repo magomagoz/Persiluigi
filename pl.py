@@ -1465,82 +1465,6 @@ elif st.session_state.pagina_attiva == "magazzino":
 elif st.session_state.pagina_attiva == "fatture_attive":
     st.header("🧾 Fatturazione Vendita (Attiva)")
 
-    anno_attivo = st.session_state.get("anno_contabilita", str(datetime.now().year))
-    st.info(f"Anno di contabilità selezionato in Home: **{anno_attivo}**")
-    
-    file_xml_att = st.file_uploader(
-        "Carica file XML o ZIP storico Fatture Attive",
-        type=["xml", "p7m", "zip"],
-        accept_multiple_files=True,
-        key="upload_xml_fatture_attive"
-    )
-    filtra_anno_att = st.checkbox(f"Importa solo fatture dell'anno {anno_attivo}", value=True, key="chk_filtro_anno_att")
-    aggiorna_cli_xml = st.checkbox("Aggiorna / inserisci clienti mancanti in Anagrafica", value=True, key="chk_agg_cli_xml_att")
-    
-    if file_xml_att and st.button("📥 Importa Storico XML Fatture Attive", type="primary", key="btn_import_xml_att"):
-        importate = 0
-        saltate_anno = 0
-        duplicati = 0
-    
-        for up in file_xml_att:
-            raw_bytes = up.getvalue()
-            pacchetti = []
-            if up.name.lower().endswith(".zip"):
-                with zipfile.ZipFile(io.BytesIO(raw_bytes)) as zf:
-                    for member in zf.namelist():
-                        if member.lower().endswith((".xml", ".p7m")) and not member.startswith("__MACOSX"):
-                            pacchetti.append((member, zf.read(member)))
-            else:
-                pacchetti.append((up.name, raw_bytes))
-    
-            for nome_doc, xml_data in pacchetti:
-                try:
-                    fatt_parsed = parse_xml_fattura_attiva_bytes(xml_data, nome_doc)
-                    if filtra_anno_att and str(fatt_parsed.get("anno_rif", "")) != str(anno_attivo):
-                        saltate_anno += 1
-                        continue
-    
-                    gia_presente = any(
-                        str(f.get("numero", "")).strip() == str(fatt_parsed["numero"]).strip()
-                        and str(f.get("data", "")).strip() == str(fatt_parsed["data"]).strip()
-                        for f in db["fatture_attive"]
-                    )
-                    if gia_presente:
-                        duplicati += 1
-                        continue
-    
-                    db["fatture_attive"].append(fatt_parsed)
-                    importate += 1
-    
-                    if aggiorna_cli_xml and fatt_parsed.get("cliente_nome"):
-                        cli_esistente = next(
-                            (c for c in db["clienti"]
-                             if (fatt_parsed.get("cliente_piva") and c.get("piva", "").upper() == fatt_parsed["cliente_piva"])
-                             or c.get("nome", "").lower() == fatt_parsed["cliente_nome"].lower()),
-                            None
-                        )
-                        if cli_esistente is None:
-                            db["clienti"].append({
-                                "id": len(db["clienti"]) + 1,
-                                "nome": fatt_parsed["cliente_nome"],
-                                "indirizzo": fatt_parsed["cliente_indirizzo"],
-                                "cap": fatt_parsed["cliente_cap"],
-                                "citta": fatt_parsed["cliente_citta"],
-                                "piva": fatt_parsed["cliente_piva"],
-                                "sdi": fatt_parsed["cliente_sdi"],
-                                "pagamento": fatt_parsed["pagamento"],
-                                "ritenuta_4": False
-                            })
-                except Exception as e:
-                    st.warning(f"Errore su {nome_doc}: {e}")
-    
-        st.session_state.storico_caricato = True
-        st.success(
-            f"Importate **{importate}** fatture attive | "
-            f"Saltate per anno diverso: **{saltate_anno}** | "
-            f"Duplicati ignorati: **{duplicati}**"
-        )
-        st.rerun()
 
     tab1, tab2 = st.tabs(["➕ Nuova Fattura di Vendita", "📋 Registro Fatture Emesse & Stampa PDF / XML"])
 
@@ -1799,7 +1723,84 @@ elif st.session_state.pagina_attiva == "fatture_attive":
                             on_conferma=lambda i=idx: db["fatture_attive"].pop(i),
                             key_prefix=f"del_fa_{idx}"
                         )
-
+    st.write("")
+    
+    anno_attivo = st.session_state.get("anno_contabilita", str(datetime.now().year))
+    st.info(f"Anno di contabilità selezionato in Home: **{anno_attivo}**")
+    
+    file_xml_att = st.file_uploader(
+        "Carica file XML o ZIP storico Fatture Attive",
+        type=["xml", "p7m", "zip"],
+        accept_multiple_files=True,
+        key="upload_xml_fatture_attive"
+    )
+    filtra_anno_att = st.checkbox(f"Importa solo fatture dell'anno {anno_attivo}", value=True, key="chk_filtro_anno_att")
+    aggiorna_cli_xml = st.checkbox("Aggiorna / inserisci clienti mancanti in Anagrafica", value=True, key="chk_agg_cli_xml_att")
+    
+    if file_xml_att and st.button("📥 Importa Storico XML Fatture Attive", type="primary", key="btn_import_xml_att"):
+        importate = 0
+        saltate_anno = 0
+        duplicati = 0
+    
+        for up in file_xml_att:
+            raw_bytes = up.getvalue()
+            pacchetti = []
+            if up.name.lower().endswith(".zip"):
+                with zipfile.ZipFile(io.BytesIO(raw_bytes)) as zf:
+                    for member in zf.namelist():
+                        if member.lower().endswith((".xml", ".p7m")) and not member.startswith("__MACOSX"):
+                            pacchetti.append((member, zf.read(member)))
+            else:
+                pacchetti.append((up.name, raw_bytes))
+    
+            for nome_doc, xml_data in pacchetti:
+                try:
+                    fatt_parsed = parse_xml_fattura_attiva_bytes(xml_data, nome_doc)
+                    if filtra_anno_att and str(fatt_parsed.get("anno_rif", "")) != str(anno_attivo):
+                        saltate_anno += 1
+                        continue
+    
+                    gia_presente = any(
+                        str(f.get("numero", "")).strip() == str(fatt_parsed["numero"]).strip()
+                        and str(f.get("data", "")).strip() == str(fatt_parsed["data"]).strip()
+                        for f in db["fatture_attive"]
+                    )
+                    if gia_presente:
+                        duplicati += 1
+                        continue
+    
+                    db["fatture_attive"].append(fatt_parsed)
+                    importate += 1
+    
+                    if aggiorna_cli_xml and fatt_parsed.get("cliente_nome"):
+                        cli_esistente = next(
+                            (c for c in db["clienti"]
+                             if (fatt_parsed.get("cliente_piva") and c.get("piva", "").upper() == fatt_parsed["cliente_piva"])
+                             or c.get("nome", "").lower() == fatt_parsed["cliente_nome"].lower()),
+                            None
+                        )
+                        if cli_esistente is None:
+                            db["clienti"].append({
+                                "id": len(db["clienti"]) + 1,
+                                "nome": fatt_parsed["cliente_nome"],
+                                "indirizzo": fatt_parsed["cliente_indirizzo"],
+                                "cap": fatt_parsed["cliente_cap"],
+                                "citta": fatt_parsed["cliente_citta"],
+                                "piva": fatt_parsed["cliente_piva"],
+                                "sdi": fatt_parsed["cliente_sdi"],
+                                "pagamento": fatt_parsed["pagamento"],
+                                "ritenuta_4": False
+                            })
+                except Exception as e:
+                    st.warning(f"Errore su {nome_doc}: {e}")
+    
+        st.session_state.storico_caricato = True
+        st.success(
+            f"Importate **{importate}** fatture attive | "
+            f"Saltate per anno diverso: **{saltate_anno}** | "
+            f"Duplicati ignorati: **{duplicati}**"
+        )
+        st.rerun()
 # ==============================================================================
 # 6. FATTURAZIONE ACQUISTI (PASSIVA)
 # ==============================================================================
