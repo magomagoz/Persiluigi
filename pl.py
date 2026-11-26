@@ -206,6 +206,40 @@ def fmt_eur(val):
         return "-"
     return f"{val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
+def pdf_txt(val):
+    if val is None:
+        return ""
+    s = str(val).replace("€", "EUR")
+    return s.encode("latin-1", errors="replace").decode("latin-1")
+
+FONT_REG_CANDIDATES = ["DejaVuSans.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]
+FONT_BOLD_CANDIDATES = ["DejaVuSans-Bold.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"]
+
+def trova_font(candidati):
+    for p in candidati:
+        if p and os.path.exists(p):
+            return p
+    return None
+
+def prepara_font_pdf(pdf):
+    reg_path = trova_font(FONT_REG_CANDIDATES)
+    bold_path = trova_font(FONT_BOLD_CANDIDATES)
+    if reg_path:
+        pdf.add_font("AppFont", "", reg_path)
+        pdf.add_font("AppFont", "B", bold_path if bold_path else reg_path)
+        pdf.add_font("AppFont", "I", reg_path)
+        pdf.add_font("AppFont", "BI", bold_path if bold_path else reg_path)
+        return "AppFont", True
+    return None, False
+
+def pdf_txt(val, usa_unicode=False):
+    if val is None:
+        return ""
+    s = str(val)
+    if usa_unicode:
+        return s
+    return s.replace("€", "EUR").encode("latin-1", errors="replace").decode("latin-1")
+
 def aggiungi_o_aggiorna_magazzino(nuovo_art):
     cod_new = str(nuovo_art.get("codice", "")).strip().lower()
     desc_new = str(nuovo_art.get("descrizione", "")).strip().lower()
@@ -262,6 +296,11 @@ def pulsante_elimina_sicuro(stato_key, etichetta_avviso, on_conferma, key_prefix
 
 # --- FUNZIONE GENERAZIONE PDF SU SCHEMA ALLEGATO (USA LOGO AZIENDA) ---
 def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
+    
+    font_fam, usa_uni = prepara_font_pdf(pdf)
+    f_serif = font_fam if font_fam else "Times"
+    f_sans = font_fam if font_fam else "Helvetica"
+    
     pdf = FPDF(orientation="P", unit="mm", format="A4")
     pdf.add_page()
     pdf.set_auto_page_break(auto=False)
@@ -486,44 +525,44 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
     rit_imp = doc_data.get("rit_imp", 0.0)
     totale_finale = doc_data.get("totale", 0.0)
 
-    pdf.set_font("Times", "", 9.5)
+    pdf.set_font(f_serif, "", 9.5)
     pdf.set_xy(x0 + 14, y8 + 0.8)
-    pdf.cell(6, 4.8, "€")
-    pdf.cell(26, 4.8, fmt_eur(imp_4), align="R")
+    pdf.cell(6, 4.8, pdf_txt("€", usa_uni))
+    pdf.cell(26, 4.8, pdf_txt(fmt_eur(imp_4), usa_uni), align="R")
 
     pdf.set_xy(x0 + w_t1 + 1.5, y8 + 0.8)
-    pdf.cell(18, 4.8, "iva 4%")
-    pdf.cell(6, 4.8, "€")
-    pdf.cell(19, 4.8, fmt_eur(iva_4), align="R")
+    pdf.cell(18, 4.8, pdf_txt("iva 4%", usa_uni))
+    pdf.cell(6, 4.8, pdf_txt("€", usa_uni))
+    pdf.cell(19, 4.8, pdf_txt(fmt_eur(iva_4), usa_uni), align="R")
 
     pdf.set_xy(x0 + w_t1 + w_t2 + 24, y8 + 0.8)
-    pdf.cell(6, 4.8, "€")
-    pdf.cell(52, 4.8, fmt_eur(tot_4), align="R")
+    pdf.cell(6, 4.8, pdf_txt("€", usa_uni))
+    pdf.cell(52, 4.8, pdf_txt(fmt_eur(tot_4), usa_uni), align="R")
 
     pdf.set_xy(x0 + 14, y8 + 5.8)
-    pdf.cell(6, 4.8, "€")
-    pdf.cell(26, 4.8, fmt_eur(imp_std), align="R")
+    pdf.cell(6, 4.8, pdf_txt("€", usa_uni))
+    pdf.cell(26, 4.8, pdf_txt(fmt_eur(imp_std), usa_uni), align="R")
 
     pdf.set_xy(x0 + w_t1 + 1.5, y8 + 5.8)
-    pdf.cell(18, 4.8, f"iva {aliq_std}%")
-    pdf.cell(6, 4.8, "€")
-    pdf.cell(19, 4.8, fmt_eur(iva_std), align="R")
+    pdf.cell(18, 4.8, pdf_txt(f"iva {aliq_std}%", usa_uni))
+    pdf.cell(6, 4.8, pdf_txt("€", usa_uni))
+    pdf.cell(19, 4.8, pdf_txt(fmt_eur(iva_std), usa_uni), align="R")
 
     pdf.set_xy(x0 + w_t1 + w_t2 + 24, y8 + 5.8)
-    pdf.cell(6, 4.8, "€")
-    pdf.cell(52, 4.8, fmt_eur(tot_std), align="R")
+    pdf.cell(6, 4.8, pdf_txt("€", usa_uni))
+    pdf.cell(52, 4.8, pdf_txt(fmt_eur(tot_std), usa_uni), align="R")
 
     pdf.set_xy(x0 + 14, y8 + 10.8)
-    pdf.cell(32, 4.8, f"- RIT {int(rit_perc)}%" if rit_perc > 0 else "")
+    pdf.cell(32, 4.8, pdf_txt(f"- RIT {int(rit_perc)}%" if rit_perc > 0 else "", usa_uni))
 
     pdf.set_xy(x0 + w_t1 + 19.5, y8 + 10.8)
-    pdf.cell(6, 4.8, "€" if rit_imp > 0 else "")
-    pdf.cell(19, 4.8, fmt_eur(rit_imp) if rit_imp > 0 else "", align="R")
+    pdf.cell(6, 4.8, pdf_txt("€", usa_uni) if rit_imp > 0 else "")
+    pdf.cell(19, 4.8, pdf_txt(fmt_eur(rit_imp), usa_uni) if rit_imp > 0 else "", align="R")
 
-    pdf.set_font("Times", "B", 10)
+    pdf.set_font(f_serif, "B", 10)
     pdf.set_xy(x0 + w_t1 + w_t2 + 24, y8 + 10.8)
-    pdf.cell(6, 4.8, "€")
-    pdf.cell(52, 4.8, fmt_eur(totale_finale), align="R")
+    pdf.cell(6, 4.8, pdf_txt("€", usa_uni))
+    pdf.cell(52, 4.8, pdf_txt(fmt_eur(totale_finale), usa_uni), align="R")
 
     # 7. Piè di pagina riquadrato in basso a sinistra
     y9 = y8 + h_tot_body
