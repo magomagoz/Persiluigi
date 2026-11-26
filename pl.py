@@ -131,26 +131,27 @@ st.markdown("""
         box-shadow: 0 10px 20px rgba(15, 23, 42, 0.22) !important;
     }
     
-    /* Contenitore interno del testo: spinge tutto verso il basso lasciando spazio centrale all'icona */
+    /* Contenitore interno del testo: allinea la scritta in basso lasciando respiro sopra */
     [class*="st-key-tile_"] button [data-testid="stMarkdownContainer"],
     [class*="st-key-tile_"] button [data-testid="stMarkdownContainer"] p {
         width: 100% !important;
         height: 100% !important;
         margin: 0 !important;
+        padding-bottom: 8px !important;
         display: flex !important;
         flex-direction: column !important;
         justify-content: flex-end !important;
         align-items: center !important;
         white-space: pre-line !important;
-        font-size: 1.25rem !important;
+        font-size: 1.2rem !important;
         font-weight: 800 !important;
         line-height: 1.2 !important;
     }
     
-    /* Icona grande centrata sopra la descrizione in basso */
+    /* Icona più grande e staccata dalla scritta sottostante */
     [class*="st-key-tile_"] button [data-testid="stMarkdownContainer"] p::first-line {
-        font-size: 4.3rem !important;
-        line-height: 1.35 !important;
+        font-size: 3.6rem !important;
+        line-height: 1.8 !important;
         font-weight: 400 !important;
     }
 
