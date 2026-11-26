@@ -913,7 +913,7 @@ if st.session_state.pagina_attiva == "home":
 # ==============================================================================
 elif st.session_state.pagina_attiva == "ditta":
     st.header("🏢 Dati Ditta Individuale & Intestazione Fattura")
-    st.info("Questi dati e il logo aziendale (logo_azienda.png) popolano automaticamente il riquadro superiore sinistro, l'area IBAN e il riquadro piè di pagina dei documenti PDF.")
+    st.info("Questi dati e il logo aziendale popolano automaticamente il riquadro superiore sinistro, l'area IBAN e il riquadro piè di pagina dei documenti PDF.")
 
     with st.form("form_ditta"):
         col1, col2 = st.columns(2)
