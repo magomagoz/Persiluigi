@@ -922,6 +922,27 @@ if st.session_state.pagina_attiva == "home":
 
     st.write("")
 
+    anni_disponibili = sorted({
+        str(datetime.now().year),
+        "2030","2029","2028","2027","2026", "2025", "2024", "2023", "2022", "2021",
+    }, reverse=True)
+    
+    if "anno_contabilita" not in st.session_state:
+        st.session_state.anno_contabilita = str(datetime.now().year)
+    
+    _, col_anno, _ = st.columns([2.2, 1.6, 2.2])
+    with col_anno:
+        anno_scelto = st.selectbox(
+            "📅 Anno di contabilità",
+            options=anni_disponibili,
+            index=anni_disponibili.index(st.session_state.anno_contabilita)
+            if st.session_state.anno_contabilita in anni_disponibili else 0,
+            key="sel_anno_contabilita_home"
+        )
+        st.session_state.anno_contabilita = anno_scelto
+
+    st.write("")
+    
     with st.expander("📂 Gestione File dello Storico (.json)", expanded=False):
         st.write("Carica un file dello storico salvato in precedenza oppure esporta una copia aggiornata dell'archivio corrente.")
 
