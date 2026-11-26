@@ -836,7 +836,7 @@ if st.session_state.pagina_attiva != "home":
         st.download_button(
             label="💾 Salva Storico (.json)",
             data=json_str_top,
-            file_name=nome_file_storico_json(db["ditta"])
+            file_name=nome_file_storico_json(db["ditta"]),
             mime="application/json",
             key="dl_top_json"
         )
@@ -917,7 +917,7 @@ if st.session_state.pagina_attiva == "home":
         st.download_button(
             label="⬇️ Scarica Storico Attuale (.json)",
             data=json_str_home,
-            file_name=nome_file_storico_json(db["ditta"])
+            file_name=nome_file_storico_json(db["ditta"]),
             mime="application/json",
             key="btn_scarica_storico"
         )
