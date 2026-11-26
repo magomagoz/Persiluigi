@@ -1353,25 +1353,66 @@ elif st.session_state.pagina_attiva == "fatture_attive":
 
     tab1, tab2 = st.tabs(["➕ Nuova Fattura di Vendita", "📋 Registro Fatture Emesse & Stampa PDF / XML"])
 
-    with tab1:
+        with tab1:
         if "righe_fattura_attiva" not in st.session_state:
             st.session_state.righe_fattura_attiva = []
 
-        if not db["clienti"]:
-            st.caption("Nessun cliente in anagrafica: puoi caricare lo storico dalla Home o aggiungere un cliente.")
+        nuovo_cliente_fatt = st.toggle("🆕 Nuovo cliente (non ancora censito)", value=False, key="toggle_nuovo_cli_fatt")
+
+        col1, col2, col3, col4 = st.columns(4)
+        num_fatt = col1.text_input("Numero Fattura", value=f"{len(db['fatture_attive'])+1}/{str(datetime.now().year)[-2:]}")
+        data_fatt = col2.date_input("Data Fattura", value=date.today())
+        rif_offerta = col3.text_input("Riferimento Offerta", value="")
+        scad_fatt = col4.date_input("Scadenza Pagamento", value=date.today() + timedelta(days=30))
+
+        cliente_dati_fa = None
+        aggiorna_anag_fa = False
+
+        if nuovo_cliente_fatt:
+            st.markdown("**Dati Nuovo Cliente Destinatario**")
+            fc1, fc2 = st.columns(2)
+            cli_nome_fa = fc1.text_input("Spettabile / Ragione Sociale*", key="fatt_new_nome")
+            cli_ind_fa = fc1.text_input("Via e Civico", key="fatt_new_ind")
+            cli_cap_fa = fc1.text_input("CAP (5 cifre)", key="fatt_new_cap")
+            cli_citta_fa = fc1.text_input("Città", key="fatt_new_citta")
+
+            cli_piva_fa = fc2.text_input("Codice Fiscale / Partita IVA", key="fatt_new_piva")
+            cli_sdi_fa = fc2.text_input("Codice SDI (7 caratteri)", value="0000000", key="fatt_new_sdi")
+            regolamento = fc2.text_input("Regolamento", value="rimessa diretta", key="fatt_new_pag")
+            ritenuta_cli_default = True
+            aggiorna_anag_fa = fc2.checkbox("Salva / Aggiorna in Anagrafica Clienti", value=True, key="fatt_new_salva_anag")
+
+            cliente_dati_fa = {
+                "nome": pulisci_testo(cli_nome_fa),
+                "indirizzo": pulisci_testo(cli_ind_fa),
+                "cap": pulisci_testo(cli_cap_fa),
+                "citta": pulisci_testo(cli_citta_fa),
+                "piva": re.sub(r"\s+", "", pulisci_testo(cli_piva_fa)).upper(),
+                "sdi": pulisci_testo(cli_sdi_fa).upper() or "0000000",
+                "pagamento": pulisci_testo(regolamento) or "rimessa diretta"
+            }
         else:
-            col1, col2, col3, col4 = st.columns(4)
-            num_fatt = col1.text_input("Numero Fattura", value=f"{len(db['fatture_attive'])+1}/{str(datetime.now().year)[-2:]}")
-            data_fatt = col2.date_input("Data Fattura", value=date.today())
-            rif_offerta = col3.text_input("Riferimento Offerta", value="")
-            scad_fatt = col4.date_input("Scadenza Pagamento", value=date.today() + timedelta(days=30))
+            if not db["clienti"]:
+                st.caption("Nessun cliente in anagrafica: attiva il toggle **Nuovo cliente** qui sopra oppure carica lo storico dalla Home.")
+            else:
+                c_cli, c_reg = st.columns([2, 1])
+                nomi_clienti = [c["nome"] for c in db["clienti"]]
+                cliente_scelto_nome = c_cli.selectbox("Spettabile Cliente", nomi_clienti)
+                cliente_obj = next(c for c in db["clienti"] if c["nome"] == cliente_scelto_nome)
+                regolamento = c_reg.text_input("Regolamento", value=cliente_obj.get("pagamento", "rimessa diretta"))
+                ritenuta_cli_default = cliente_obj.get("ritenuta_4", True)
 
-            c_cli, c_reg = st.columns([2, 1])
-            nomi_clienti = [c["nome"] for c in db["clienti"]]
-            cliente_scelto_nome = c_cli.selectbox("Spettabile Cliente", nomi_clienti)
-            cliente_obj = next(c for c in db["clienti"] if c["nome"] == cliente_scelto_nome)
-            regolamento = c_reg.text_input("Regolamento", value=cliente_obj.get("pagamento", "rimessa diretta"))
+                cliente_dati_fa = {
+                    "nome": cliente_obj.get("nome", ""),
+                    "indirizzo": cliente_obj.get("indirizzo", ""),
+                    "cap": cliente_obj.get("cap", ""),
+                    "citta": cliente_obj.get("citta", ""),
+                    "piva": cliente_obj.get("piva", ""),
+                    "sdi": cliente_obj.get("sdi", "0000000"),
+                    "pagamento": pulisci_testo(regolamento) or "rimessa diretta"
+                }
 
+        if cliente_dati_fa is not None:
             intestazione_corpo = st.text_input("Intestazione Corpo Descrizione", value="Vi rimettiamo regolare fattura per :")
 
             st.subheader("Aggiungi Righe Descrizione")
@@ -1433,7 +1474,7 @@ elif st.session_state.pagina_attiva == "fatture_attive":
                         imp_std += val_riga
 
                 imponibile_tot = round(imp_4 + imp_std, 2)
-                applica_rit = st.checkbox("Applica Ritenuta d'Acconto 4% (- RIT 4%)", value=cliente_obj.get("ritenuta_4", True))
+                applica_rit = st.checkbox("Applica Ritenuta d'Acconto 4% (- RIT 4%)", value=ritenuta_cli_default)
                 rit_perc = 4.0 if applica_rit else 0.0
                 rit_imp = round(imponibile_tot * 0.04, 2) if applica_rit else 0.0
 
@@ -1450,18 +1491,61 @@ elif st.session_state.pagina_attiva == "fatture_attive":
                         st.error("Inserisci il Numero Fattura.")
                         st.stop()
 
+                    if nuovo_cliente_fatt:
+                        if not cliente_dati_fa["nome"]:
+                            st.error("Inserisci la denominazione del Nuovo Cliente.")
+                            st.stop()
+                        ok1, e1 = valida_cap(cliente_dati_fa["cap"])
+                        ok2, e2 = valida_cf_o_piva(cliente_dati_fa["piva"], obbligatorio=False)
+                        ok3, e3 = valida_sdi(cliente_dati_fa["sdi"])
+                        errori_cli = [m for ok, m in [(ok1, e1), (ok2, e2), (ok3, e3)] if not ok]
+                        if errori_cli:
+                            for err in errori_cli:
+                                st.error(err)
+                            st.stop()
+
+                        if aggiorna_anag_fa:
+                            piva_fa = cliente_dati_fa["piva"]
+                            nome_fa = cliente_dati_fa["nome"]
+                            cli_match = None
+                            for c_item in db["clienti"]:
+                                same_piva = bool(piva_fa and re.sub(r"\s+", "", pulisci_testo(c_item.get("piva", ""))).upper() == piva_fa)
+                                same_nome = bool(nome_fa and pulisci_testo(c_item.get("nome", "")).lower() == nome_fa.lower())
+                                if same_piva or same_nome:
+                                    cli_match = c_item
+                                    break
+
+                            dati_cli_agg = {
+                                "nome": nome_fa or (cli_match.get("nome", "") if cli_match else ""),
+                                "indirizzo": cliente_dati_fa["indirizzo"] or (cli_match.get("indirizzo", "") if cli_match else ""),
+                                "cap": cliente_dati_fa["cap"] or (cli_match.get("cap", "") if cli_match else ""),
+                                "citta": cliente_dati_fa["citta"] or (cli_match.get("citta", "") if cli_match else ""),
+                                "piva": piva_fa or (cli_match.get("piva", "") if cli_match else ""),
+                                "sdi": cliente_dati_fa["sdi"] or (cli_match.get("sdi", "0000000") if cli_match else "0000000"),
+                                "pagamento": cliente_dati_fa["pagamento"] or (cli_match.get("pagamento", "rimessa diretta") if cli_match else "rimessa diretta"),
+                                "ritenuta_4": applica_rit
+                            }
+
+                            if cli_match is not None:
+                                cli_match.update(dati_cli_agg)
+                            else:
+                                db["clienti"].append({
+                                    "id": len(db["clienti"]) + 1,
+                                    **dati_cli_agg
+                                })
+
                     nuova_fatt = {
                         "numero": num_fatt,
                         "data": data_fatt.strftime("%d/%m/%Y"),
                         "scadenza": scad_fatt.strftime("%d/%m/%Y"),
                         "rif_offerta": rif_offerta,
-                        "cliente_nome": cliente_obj["nome"],
-                        "cliente_indirizzo": cliente_obj.get("indirizzo", ""),
-                        "cliente_cap": cliente_obj.get("cap", ""),
-                        "cliente_citta": cliente_obj.get("citta", ""),
-                        "cliente_piva": cliente_obj.get("piva", ""),
-                        "cliente_sdi": cliente_obj.get("sdi", ""),
-                        "pagamento": regolamento,
+                        "cliente_nome": cliente_dati_fa["nome"],
+                        "cliente_indirizzo": cliente_dati_fa["indirizzo"],
+                        "cliente_cap": cliente_dati_fa["cap"],
+                        "cliente_citta": cliente_dati_fa["citta"],
+                        "cliente_piva": cliente_dati_fa["piva"],
+                        "cliente_sdi": cliente_dati_fa["sdi"],
+                        "pagamento": cliente_dati_fa["pagamento"],
                         "intestazione_corpo": intestazione_corpo,
                         "righe": st.session_state.righe_fattura_attiva.copy(),
                         "imp_4": imp_4,
@@ -1972,17 +2056,55 @@ elif st.session_state.pagina_attiva == "preventivi":
         if "righe_preventivo" not in st.session_state:
             st.session_state.righe_preventivo = []
 
-        if not db["clienti"]:
-            st.caption("Nessun cliente in anagrafica: puoi caricare lo storico dalla Home o aggiungere un cliente.")
+        nuovo_cliente_prev = st.toggle("🆕 Nuovo cliente (non ancora censito)", value=False, key="toggle_nuovo_cli_prev")
+
+        c1, c2, c3 = st.columns(3)
+        num_prev = c1.text_input("Numero Offerta / Preventivo", value=f"{len(db['preventivi'])+1}/{str(datetime.now().year)[-2:]}")
+        data_prev = c2.date_input("Data Offerta", value=date.today())
+        validita_prev = c3.date_input("Valido fino al", value=date.today() + timedelta(days=15))
+
+        salva_in_anagrafica = False
+        cliente_dati = None
+
+        if nuovo_cliente_prev:
+            st.markdown("**Dati Nuovo Cliente Destinatario**")
+            nc1, nc2 = st.columns(2)
+            cli_nome_new = nc1.text_input("Spettabile / Ragione Sociale*", key="prev_new_nome")
+            cli_ind_new = nc1.text_input("Via e Civico", key="prev_new_ind")
+            cli_cap_new = nc1.text_input("CAP (5 cifre)", key="prev_new_cap")
+            cli_citta_new = nc1.text_input("Città", key="prev_new_citta")
+
+            cli_piva_new = nc2.text_input("Codice Fiscale / Partita IVA", key="prev_new_piva")
+            cli_sdi_new = nc2.text_input("Codice SDI (7 caratteri)", value="0000000", key="prev_new_sdi")
+            cli_pag_new = nc2.text_input("Regolamento", value="rimessa diretta", key="prev_new_pag")
+            salva_in_anagrafica = nc2.checkbox("Salva anche in Anagrafica Clienti", value=False, key="prev_new_salva_anag")
+
+            cliente_dati = {
+                "nome": pulisci_testo(cli_nome_new),
+                "indirizzo": pulisci_testo(cli_ind_new),
+                "cap": pulisci_testo(cli_cap_new),
+                "citta": pulisci_testo(cli_citta_new),
+                "piva": re.sub(r"\s+", "", pulisci_testo(cli_piva_new)).upper(),
+                "sdi": pulisci_testo(cli_sdi_new).upper() or "0000000",
+                "pagamento": pulisci_testo(cli_pag_new) or "rimessa diretta"
+            }
         else:
-            c1, c2, c3 = st.columns(3)
-            num_prev = c1.text_input("Numero Offerta / Preventivo", value=f"{len(db['preventivi'])+1}/{str(datetime.now().year)[-2:]}")
-            data_prev = c2.date_input("Data Offerta", value=date.today())
-            validita_prev = c3.date_input("Valido fino al", value=date.today() + timedelta(days=15))
+            if not db["clienti"]:
+                st.caption("Nessun cliente in anagrafica: attiva il toggle **Nuovo cliente** qui sopra oppure carica lo storico dalla Home.")
+            else:
+                cliente_prev_nome = st.selectbox("Cliente Destinatario", [c["nome"] for c in db["clienti"]], key="prev_cli")
+                cliente_prev_obj = next(c for c in db["clienti"] if c["nome"] == cliente_prev_nome)
+                cliente_dati = {
+                    "nome": cliente_prev_obj.get("nome", ""),
+                    "indirizzo": cliente_prev_obj.get("indirizzo", ""),
+                    "cap": cliente_prev_obj.get("cap", ""),
+                    "citta": cliente_prev_obj.get("citta", ""),
+                    "piva": cliente_prev_obj.get("piva", ""),
+                    "sdi": cliente_prev_obj.get("sdi", "0000000"),
+                    "pagamento": cliente_prev_obj.get("pagamento", "rimessa diretta")
+                }
 
-            cliente_prev_nome = st.selectbox("Cliente Destinatario", [c["nome"] for c in db["clienti"]], key="prev_cli")
-            cliente_prev_obj = next(c for c in db["clienti"] if c["nome"] == cliente_prev_nome)
-
+        if cliente_dati is not None:
             cp1, cp2, cp3, cp4 = st.columns([3, 1, 1.5, 1])
             desc_p = cp1.text_input("Descrizione voce preventivo")
             qta_p = cp2.number_input("Q.tà", min_value=0.0, value=0.0, step=1.0, key="pqta")
@@ -2016,18 +2138,49 @@ elif st.session_state.pagina_attiva == "preventivi":
                         st.error("Inserisci il Numero Offerta / Preventivo.")
                         st.stop()
 
+                    if nuovo_cliente_prev:
+                        if not cliente_dati["nome"]:
+                            st.error("Inserisci la denominazione del Nuovo Cliente.")
+                            st.stop()
+                        ok1, e1 = valida_cap(cliente_dati["cap"])
+                        ok2, e2 = valida_cf_o_piva(cliente_dati["piva"], obbligatorio=False)
+                        ok3, e3 = valida_sdi(cliente_dati["sdi"])
+                        errori_cli = [m for ok, m in [(ok1, e1), (ok2, e2), (ok3, e3)] if not ok]
+                        if errori_cli:
+                            for err in errori_cli:
+                                st.error(err)
+                            st.stop()
+
+                        if salva_in_anagrafica:
+                            gia_presente = any(
+                                str(c.get("nome", "")).strip().lower() == cliente_dati["nome"].lower()
+                                for c in db["clienti"]
+                            )
+                            if not gia_presente:
+                                db["clienti"].append({
+                                    "id": len(db["clienti"]) + 1,
+                                    "nome": cliente_dati["nome"],
+                                    "indirizzo": cliente_dati["indirizzo"],
+                                    "cap": cliente_dati["cap"],
+                                    "citta": cliente_dati["citta"],
+                                    "piva": cliente_dati["piva"],
+                                    "sdi": cliente_dati["sdi"],
+                                    "pagamento": cliente_dati["pagamento"],
+                                    "ritenuta_4": True
+                                })
+
                     db["preventivi"].append({
                         "numero": num_prev,
                         "data": data_prev.strftime("%d/%m/%Y"),
                         "scadenza": validita_prev.strftime("%d/%m/%Y"),
                         "rif_offerta": num_prev,
-                        "cliente_nome": cliente_prev_obj["nome"],
-                        "cliente_indirizzo": cliente_prev_obj.get("indirizzo", ""),
-                        "cliente_cap": cliente_prev_obj.get("cap", ""),
-                        "cliente_citta": cliente_prev_obj.get("citta", ""),
-                        "cliente_piva": cliente_prev_obj.get("piva", ""),
-                        "cliente_sdi": cliente_prev_obj.get("sdi", ""),
-                        "pagamento": cliente_prev_obj.get("pagamento", "rimessa diretta"),
+                        "cliente_nome": cliente_dati["nome"],
+                        "cliente_indirizzo": cliente_dati["indirizzo"],
+                        "cliente_cap": cliente_dati["cap"],
+                        "cliente_citta": cliente_dati["citta"],
+                        "cliente_piva": cliente_dati["piva"],
+                        "cliente_sdi": cliente_dati["sdi"],
+                        "pagamento": cliente_dati["pagamento"],
                         "intestazione_corpo": "Vi rimettiamo nostra migliore offerta per :",
                         "righe": st.session_state.righe_preventivo.copy(),
                         "imp_4": 0.0,
@@ -2063,7 +2216,7 @@ elif st.session_state.pagina_attiva == "preventivi":
                         key=f"dl_prev_{idx}"
                     )
 
-                    if p.get("stato") != "Fatturato":
+                                        if p.get("stato") != "Fatturato":
                         if c_act2.button("🔄 Converti", key=f"conv_{idx}"):
                             ok1, e1 = valida_cap(p.get("cliente_cap", ""))
                             ok2, e2 = valida_cf_o_piva(p.get("cliente_piva", ""), obbligatorio=False)
@@ -2073,6 +2226,36 @@ elif st.session_state.pagina_attiva == "preventivi":
                                 for err in errori_conv:
                                     st.error(err)
                                 st.stop()
+
+                            # Aggiorna o inserisce i dati del preventivo nell'anagrafica Clienti
+                            nome_cli_p = pulisci_testo(p.get("cliente_nome", ""))
+                            piva_cli_p = re.sub(r"\s+", "", pulisci_testo(p.get("cliente_piva", ""))).upper()
+                            cli_match = None
+                            for c_item in db["clienti"]:
+                                same_piva = bool(piva_cli_p and re.sub(r"\s+", "", pulisci_testo(c_item.get("piva", ""))).upper() == piva_cli_p)
+                                same_nome = bool(nome_cli_p and pulisci_testo(c_item.get("nome", "")).lower() == nome_cli_p.lower())
+                                if same_piva or same_nome:
+                                    cli_match = c_item
+                                    break
+
+                            dati_cli_agg = {
+                                "nome": nome_cli_p or (cli_match.get("nome", "") if cli_match else ""),
+                                "indirizzo": pulisci_testo(p.get("cliente_indirizzo", "")) or (cli_match.get("indirizzo", "") if cli_match else ""),
+                                "cap": pulisci_testo(p.get("cliente_cap", "")) or (cli_match.get("cap", "") if cli_match else ""),
+                                "citta": pulisci_testo(p.get("cliente_citta", "")) or (cli_match.get("citta", "") if cli_match else ""),
+                                "piva": piva_cli_p or (cli_match.get("piva", "") if cli_match else ""),
+                                "sdi": pulisci_testo(p.get("cliente_sdi", "")).upper() or (cli_match.get("sdi", "0000000") if cli_match else "0000000"),
+                                "pagamento": pulisci_testo(p.get("pagamento", "")) or (cli_match.get("pagamento", "rimessa diretta") if cli_match else "rimessa diretta"),
+                            }
+
+                            if cli_match is not None:
+                                cli_match.update(dati_cli_agg)
+                            elif dati_cli_agg["nome"]:
+                                db["clienti"].append({
+                                    "id": len(db["clienti"]) + 1,
+                                    **dati_cli_agg,
+                                    "ritenuta_4": True
+                                })
 
                             nuovo_num_fatt = f"{len(db['fatture_attive'])+1}/{str(datetime.now().year)[-2:]}"
                             nuova_fatt_da_prev = p.copy()
@@ -2085,7 +2268,8 @@ elif st.session_state.pagina_attiva == "preventivi":
                             nuova_fatt_da_prev["stato"] = "Da Incassare"
                             db["fatture_attive"].append(nuova_fatt_da_prev)
                             db["preventivi"][idx]["stato"] = "Fatturato"
-                            st.success(f"Convertito nella Fattura N. {nuovo_num_fatt} con Riferimento Offerta {p.get('numero', '')}!")
+                            st.session_state.storico_caricato = True
+                            st.success(f"Convertito nella Fattura N. {nuovo_num_fatt} e anagrafica Clienti aggiornata!")
                             st.rerun()
 
                     with c_del:
