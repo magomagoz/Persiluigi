@@ -820,6 +820,54 @@ elif st.session_state.pagina_attiva == "ditta":
 elif st.session_state.pagina_attiva == "clienti":
     st.header("👥 Anagrafica Clienti")
 
+    with st.expander("📊 Importa Clienti da file Excel (.xlsx / .xls)", expanded=False):
+        st.caption("Colonne supportate: `nome` (o `ragione_sociale`), `indirizzo` (o `via`), `cap`, `citta`, `piva` (o `cf`/`codice_fiscale`), `sdi`, `pagamento`.")
+        file_xl_cli = st.file_uploader("Seleziona file Excel Clienti", type=["xlsx", "xls"], key="xl_cli_up")
+        if file_xl_cli is not None and st.button("📥 Importa Clienti", key="btn_xl_cli", type="primary"):
+            try:
+                df_c = pd.read_excel(file_xl_cli)
+                df_c.columns = [str(c).strip().lower().replace(" ", "_") for c in df_c.columns]
+                imp_ok, scartati = 0, []
+                for idx_r, row in df_c.iterrows():
+                    nome_r = pulisci_testo(pick_excel_col(df_c.columns, row, ["nome", "ragione_sociale", "spettabile", "cliente"], ""))
+                    if not nome_r:
+                        scartati.append(f"Riga {idx_r+2}: denominazione mancante")
+                        continue
+                    cap_r = pulisci_testo(pick_excel_col(df_c.columns, row, ["cap"], ""))
+                    cf_r = pulisci_testo(pick_excel_col(df_c.columns, row, ["piva", "cf", "codice_fiscale", "partita_iva"], ""))
+                    sdi_r = pulisci_testo(pick_excel_col(df_c.columns, row, ["sdi", "codice_sdi"], "0000000")).upper()
+
+                    ok1, e1 = valida_cap(cap_r)
+                    ok2, e2 = valida_cf_o_piva(cf_r, obbligatorio=True)
+                    ok3, e3 = valida_sdi(sdi_r)
+                    if not (ok1 and ok2 and ok3):
+                        motivo = "; ".join([m for ok, m in [(ok1, e1), (ok2, e2), (ok3, e3)] if not ok])
+                        scartati.append(f"Riga {idx_r+2} ({nome_r}): {motivo}")
+                        continue
+
+                    db["clienti"].append({
+                        "id": len(db["clienti"]) + 1,
+                        "nome": nome_r,
+                        "indirizzo": pulisci_testo(pick_excel_col(df_c.columns, row, ["indirizzo", "via"], "")),
+                        "cap": cap_r,
+                        "citta": pulisci_testo(pick_excel_col(df_c.columns, row, ["citta", "città", "comune"], "")),
+                        "piva": cf_r.upper(),
+                        "sdi": sdi_r or "0000000",
+                        "pagamento": pulisci_testo(pick_excel_col(df_c.columns, row, ["pagamento", "regolamento"], "rimessa diretta")) or "rimessa diretta",
+                        "ritenuta_4": True
+                    })
+                    imp_ok += 1
+
+                if imp_ok > 0:
+                    st.session_state.storico_caricato = True
+                st.success(f"Clienti importati: {imp_ok}")
+                if scartati:
+                    st.warning("Righe non importate per controlli di validità:\n- " + "\n- ".join(scartati))
+                if imp_ok > 0:
+                    st.rerun()
+            except Exception as e:
+                st.error(f"Errore lettura Excel clienti: {e}")
+    
     with st.expander("➕ Aggiungi Nuovo Cliente", expanded=False):
         with st.form("form_cliente", clear_on_submit=True):
             c1, c2 = st.columns(2)
@@ -875,6 +923,50 @@ elif st.session_state.pagina_attiva == "clienti":
 elif st.session_state.pagina_attiva == "fornitori":
     st.header("🏭 Anagrafica Fornitori")
 
+    with st.expander("📊 Importa Fornitori da file Excel (.xlsx / .xls)", expanded=False):
+        st.caption("Colonne supportate: `nome` (o `ragione_sociale`), `piva` (o `cf`/`partita_iva`), `categoria`, `indirizzo`, `iban`, `note`.")
+        file_xl_forn = st.file_uploader("Seleziona file Excel Fornitori", type=["xlsx", "xls"], key="xl_forn_up")
+        if file_xl_forn is not None and st.button("📥 Importa Fornitori", key="btn_xl_forn", type="primary"):
+            try:
+                df_f = pd.read_excel(file_xl_forn)
+                df_f.columns = [str(c).strip().lower().replace(" ", "_") for c in df_f.columns]
+                imp_ok, scartati = 0, []
+                for idx_r, row in df_f.iterrows():
+                    nome_r = pulisci_testo(pick_excel_col(df_f.columns, row, ["nome", "ragione_sociale", "fornitore"], ""))
+                    if not nome_r:
+                        scartati.append(f"Riga {idx_r+2}: denominazione mancante")
+                        continue
+                    cf_r = pulisci_testo(pick_excel_col(df_f.columns, row, ["piva", "cf", "partita_iva", "codice_fiscale"], ""))
+                    iban_r = re.sub(r"[\s\-]+", "", pulisci_testo(pick_excel_col(df_f.columns, row, ["iban"], ""))).upper()
+
+                    ok1, e1 = valida_cf_o_piva(cf_r, obbligatorio=True)
+                    ok2, e2 = valida_iban(iban_r, obbligatorio=False)
+                    if not (ok1 and ok2):
+                        motivo = "; ".join([m for ok, m in [(ok1, e1), (ok2, e2)] if not ok])
+                        scartati.append(f"Riga {idx_r+2} ({nome_r}): {motivo}")
+                        continue
+
+                    db["fornitori"].append({
+                        "id": len(db["fornitori"]) + 1,
+                        "nome": nome_r,
+                        "piva": cf_r.upper(),
+                        "categoria": pulisci_testo(pick_excel_col(df_f.columns, row, ["categoria", "spesa"], "Altro")) or "Altro",
+                        "indirizzo": pulisci_testo(pick_excel_col(df_f.columns, row, ["indirizzo", "via"], "")),
+                        "iban": iban_r,
+                        "note": pulisci_testo(pick_excel_col(df_f.columns, row, ["note", "contatti"], ""))
+                    })
+                    imp_ok += 1
+
+                if imp_ok > 0:
+                    st.session_state.storico_caricato = True
+                st.success(f"Fornitori importati: {imp_ok}")
+                if scartati:
+                    st.warning("Righe non importate per controlli di validità:\n- " + "\n- ".join(scartati))
+                if imp_ok > 0:
+                    st.rerun()
+            except Exception as e:
+                st.error(f"Errore lettura Excel fornitori: {e}")
+    
     with st.expander("➕ Aggiungi Nuovo Fornitore", expanded=False):
         with st.form("form_fornitore", clear_on_submit=True):
             c1, c2 = st.columns(2)
