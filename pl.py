@@ -1353,7 +1353,7 @@ elif st.session_state.pagina_attiva == "fatture_attive":
 
     tab1, tab2 = st.tabs(["➕ Nuova Fattura di Vendita", "📋 Registro Fatture Emesse & Stampa PDF / XML"])
 
-        with tab1:
+    with tab1:
         if "righe_fattura_attiva" not in st.session_state:
             st.session_state.righe_fattura_attiva = []
 
