@@ -197,6 +197,9 @@ def init_db():
 init_db()
 db = st.session_state.db
 
+if "conferma_elimina" not in st.session_state:
+    st.session_state.conferma_elimina = None
+
 def vai_a(sezione):
     st.session_state.pagina_attiva = sezione
     st.rerun()
@@ -205,12 +208,6 @@ def fmt_eur(val):
     if val is None or val == 0:
         return "-"
     return f"{val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
-def pdf_txt(val):
-    if val is None:
-        return ""
-    s = str(val).replace("€", "EUR")
-    return s.encode("latin-1", errors="replace").decode("latin-1")
 
 FONT_REG_CANDIDATES = ["DejaVuSans.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]
 FONT_BOLD_CANDIDATES = ["DejaVuSans-Bold.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"]
@@ -295,16 +292,15 @@ def pulsante_elimina_sicuro(stato_key, etichetta_avviso, on_conferma, key_prefix
             st.rerun()
 
 # --- FUNZIONE GENERAZIONE PDF SU SCHEMA ALLEGATO (USA LOGO AZIENDA) ---
+
 def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
-    
+    pdf = FPDF(orientation="P", unit="mm", format="A4")
     font_fam, usa_uni = prepara_font_pdf(pdf)
     f_serif = font_fam if font_fam else "Times"
     f_sans = font_fam if font_fam else "Helvetica"
-    
-    pdf = FPDF(orientation="P", unit="mm", format="A4")
     pdf.add_page()
     pdf.set_auto_page_break(auto=False)
-
+    
     x0 = 15
     y0 = 15
     w_tot = 180
@@ -350,36 +346,36 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
     pdf.set_text_color(*nero)
 
     pdf.set_xy(x_spett, y0 + 11)
-    pdf.set_font("Times", "", 10)
-    pdf.cell(44, 5, "Spettabile")
+    pdf.set_font(f_serif, "", 10)
+    pdf.cell(44, 5, pdf_txt("Spettabile", usa_uni))
     pdf.set_xy(x_val, y0 + 11)
-    pdf.set_font("Helvetica", "B", 9.5)
-    pdf.cell(62, 5, doc_data.get("cliente_nome", ""))
+    pdf.set_font(f_sans, "B", 9.5)
+    pdf.cell(62, 5, pdf_txt(doc_data.get("cliente_nome", ""), usa_uni))
 
     pdf.set_xy(x_spett, y0 + 21)
-    pdf.set_font("Times", "", 10)
-    pdf.cell(44, 5, "via")
+    pdf.set_font(f_serif, "", 10)
+    pdf.cell(44, 5, pdf_txt("via", usa_uni))
     pdf.set_xy(x_val, y0 + 21)
-    pdf.set_font("Times", "", 10)
-    pdf.cell(62, 5, doc_data.get("cliente_indirizzo", ""))
+    pdf.set_font(f_serif, "", 10)
+    pdf.cell(62, 5, pdf_txt(doc_data.get("cliente_indirizzo", ""), usa_uni))
 
     pdf.set_xy(x_spett, y0 + 26)
-    pdf.cell(44, 5, "cap:")
+    pdf.cell(44, 5, pdf_txt("cap:", usa_uni))
     pdf.set_xy(x_val, y0 + 26)
-    pdf.cell(62, 5, doc_data.get("cliente_cap", ""))
+    pdf.cell(62, 5, pdf_txt(doc_data.get("cliente_cap", ""), usa_uni))
 
     pdf.set_xy(x_val, y0 + 31)
-    pdf.cell(62, 5, doc_data.get("cliente_citta", ""))
+    pdf.cell(62, 5, pdf_txt(doc_data.get("cliente_citta", ""), usa_uni))
 
     pdf.set_xy(x_spett, y0 + 36)
-    pdf.cell(44, 5, "cod fiscale")
+    pdf.cell(44, 5, pdf_txt("cod fiscale", usa_uni))
     pdf.set_xy(x_val, y0 + 36)
-    pdf.cell(62, 5, doc_data.get("cliente_piva", ""))
+    pdf.cell(62, 5, pdf_txt(doc_data.get("cliente_piva", ""), usa_uni))
 
     pdf.set_xy(x_spett, y0 + 41)
-    pdf.cell(44, 5, "sdi")
+    pdf.cell(44, 5, pdf_txt("sdi", usa_uni))
     pdf.set_xy(x_val, y0 + 41)
-    pdf.cell(62, 5, doc_data.get("cliente_sdi", ""))
+    pdf.cell(62, 5, pdf_txt(doc_data.get("cliente_sdi", ""), usa_uni))
 
     # 2. Riga metadati
     y1 = y0 + h_top
@@ -392,13 +388,21 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
     pdf.rect(x0 + w_c1, y1, w_c2, h_meta)
     pdf.rect(x0 + w_c1 + w_c2, y1, w_c3, h_meta)
 
-    pdf.set_font("Times", "B", 10)
+    pdf.set_font(f_serif, "B", 10)
     pdf.set_xy(x0 + 1.5, y1 + 1)
-    pdf.cell(w_c1 - 3, 4.5, "data fattura" if tipo_doc == "Fattura" else "data preventivo")
+    pdf.cell(w_c1 - 3, 4.5, pdf_txt("data fattura" if tipo_doc == "Fattura" else "data preventivo", usa_uni))
     pdf.set_xy(x0 + w_c1, y1 + 1)
-    pdf.cell(w_c2, 4.5, tipo_doc.upper(), align="C")
+    pdf.cell(w_c2, 4.5, pdf_txt(tipo_doc.upper(), usa_uni), align="C")
     pdf.set_xy(x0 + w_c1 + w_c2 + 1.5, y1 + 1)
-    pdf.cell(w_c3 - 3, 4.5, "RIFERIMENTO OFFERTA")
+    pdf.cell(w_c3 - 3, 4.5, pdf_txt("RIFERIMENTO OFFERTA", usa_uni))
+
+    pdf.set_font(f_serif, "", 10.5)
+    pdf.set_xy(x0, y1 + 6.5)
+    pdf.cell(w_c1, 5, pdf_txt(doc_data.get("data", ""), usa_uni), align="C")
+    pdf.set_xy(x0 + w_c1, y1 + 6.5)
+    pdf.cell(w_c2, 5, pdf_txt(doc_data.get("numero", ""), usa_uni), align="C")
+    pdf.set_xy(x0 + w_c1 + w_c2 + 1.5, y1 + 6.5)
+    pdf.cell(w_c3 - 3, 5, pdf_txt(doc_data.get("rif_offerta", ""), usa_uni), align="L")
 
     pdf.set_font("Times", "", 10.5)
     pdf.set_xy(x0, y1 + 6.5)
@@ -417,20 +421,20 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
     pdf.rect(x0, y2, w_pag_sx, h_pag)
     pdf.rect(x0 + w_pag_sx, y2, w_pag_dx, h_pag)
 
-    pdf.set_font("Times", "B", 10)
+    pdf.set_font(f_serif, "B", 10)
     pdf.set_xy(x0 + 1.5, y2 + 1)
-    pdf.cell(w_pag_sx - 3, 4.5, "Regolamento")
-    pdf.set_font("Times", "", 10)
+    pdf.cell(w_pag_sx - 3, 4.5, pdf_txt("Regolamento", usa_uni))
+    pdf.set_font(f_serif, "", 10)
     pdf.set_xy(x0 + 1.5, y2 + 9.5)
-    pdf.cell(w_pag_sx - 3, 4.5, doc_data.get("pagamento", "rimessa diretta"))
+    pdf.cell(w_pag_sx - 3, 4.5, pdf_txt(doc_data.get("pagamento", "rimessa diretta"), usa_uni))
 
-    pdf.set_font("Times", "B", 9.5)
+    pdf.set_font(f_serif, "B", 9.5)
     pdf.set_xy(x0 + w_pag_sx + 1.5, y2 + 1)
-    pdf.cell(w_pag_dx - 3, 4.5, "bonifico intestato a:")
+    pdf.cell(w_pag_dx - 3, 4.5, pdf_txt("bonifico intestato a:", usa_uni))
     pdf.set_xy(x0 + w_pag_sx + 1.5, y2 + 5.5)
-    pdf.cell(w_pag_dx - 3, 4.5, ditta_data.get("titolare", ""))
+    pdf.cell(w_pag_dx - 3, 4.5, pdf_txt(ditta_data.get("titolare", ""), usa_uni))
     pdf.set_xy(x0 + w_pag_sx + 1.5, y2 + 10)
-    pdf.cell(w_pag_dx - 3, 4.5, f"IBAN: {ditta_data.get('iban', '')}")
+    pdf.cell(w_pag_dx - 3, 4.5, pdf_txt(f"IBAN: {ditta_data.get('iban', '')}", usa_uni))
 
     # 4. Fascia grigia + intestazione tabella q.tà / descrizione
     y3 = y2 + h_pag
@@ -445,11 +449,11 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
     pdf.rect(x0, y4, w_qta, h_th)
     pdf.rect(x0 + w_qta, y4, w_desc, h_th)
 
-    pdf.set_font("Times", "", 9.5)
+    pdf.set_font(f_serif, "", 9.5)
     pdf.set_xy(x0, y4 + 0.5)
-    pdf.cell(w_qta, 4.5, "q.tà", align="C")
+    pdf.cell(w_qta, 4.5, pdf_txt("q.tà", usa_uni), align="C")
     pdf.set_xy(x0 + w_qta, y4 + 0.5)
-    pdf.cell(w_desc, 4.5, "descrizione", align="C")
+    pdf.cell(w_desc, 4.5, pdf_txt("descrizione", usa_uni), align="C")
 
     # 5. Corpo centrale descrizione
     y5 = y4 + h_th
@@ -457,13 +461,13 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
     pdf.rect(x0, y5, w_qta, h_body)
     pdf.rect(x0 + w_qta, y5, w_desc, h_body)
 
-    pdf.set_font("Times", "B", 9.5)
+    pdf.set_font(f_serif, "B", 9.5)
     pdf.set_xy(x0 + w_qta + 1.5, y5 + 4)
     frase_intro = doc_data.get("intestazione_corpo", "Vi rimettiamo regolare fattura per :" if tipo_doc == "Fattura" else "Vi rimettiamo nostra migliore offerta per :")
-    pdf.cell(w_desc - 3, 5, frase_intro)
+    pdf.cell(w_desc - 3, 5, pdf_txt(frase_intro, usa_uni))
 
     curr_y = y5 + 16
-    pdf.set_font("Helvetica", "B", 9)
+    pdf.set_font(f_sans, "B", 9)
     for r in doc_data.get("righe", []):
         if curr_y > y5 + h_body - 16:
             break
@@ -471,16 +475,16 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
         if qta_val and qta_val > 0:
             pdf.set_xy(x0, curr_y)
             q_str = f"{int(qta_val)}" if float(qta_val).is_integer() else f"{qta_val:.2f}"
-            pdf.cell(w_qta, 5, q_str, align="C")
+            pdf.cell(w_qta, 5, pdf_txt(q_str, usa_uni), align="C")
         pdf.set_xy(x0 + w_qta + 1.5, curr_y)
-        pdf.cell(w_desc - 3, 5, r.get("descrizione", ""))
+        pdf.cell(w_desc - 3, 5, pdf_txt(r.get("descrizione", ""), usa_uni))
         curr_y += 5.2
 
     dicitura_finale = doc_data.get("note", "saldo")
     if dicitura_finale:
-        pdf.set_font("Times", "B", 9.5)
+        pdf.set_font(f_serif, "B", 9.5)
         pdf.set_xy(x0 + w_qta + 1.5, y5 + 58)
-        pdf.cell(w_desc - 3, 5, dicitura_finale)
+        pdf.cell(w_desc - 3, 5, pdf_txt(dicitura_finale, usa_uni))
 
     # 6. Fascia grigia inferiore + riepilogo fiscale
     y6 = y5 + h_body
@@ -499,13 +503,13 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
     pdf.rect(x0 + w_t1, y7, w_t2, h_tot_hdr)
     pdf.rect(x0 + w_t1 + w_t2, y7, w_t3, h_tot_hdr)
 
-    pdf.set_font("Times", "B", 10)
+    pdf.set_font(f_serif, "B", 10)
     pdf.set_xy(x0, y7 + 0.5)
-    pdf.cell(w_t1, 4.5, "Imponibile", align="C")
+    pdf.cell(w_t1, 4.5, pdf_txt("Imponibile", usa_uni), align="C")
     pdf.set_xy(x0 + w_t1 + 1.5, y7 + 0.5)
-    pdf.cell(w_t2 - 3, 4.5, "IVA", align="L")
+    pdf.cell(w_t2 - 3, 4.5, pdf_txt("IVA", usa_uni), align="L")
     pdf.set_xy(x0 + w_t1 + w_t2, y7 + 0.5)
-    pdf.cell(w_t3, 4.5, "totale fattura" if tipo_doc == "Fattura" else "totale preventivo", align="C")
+    pdf.cell(w_t3, 4.5, pdf_txt("totale fattura" if tipo_doc == "Fattura" else "totale preventivo", usa_uni), align="C")
 
     y8 = y7 + h_tot_hdr
     pdf.rect(x0, y8, w_t1, h_tot_body)
@@ -565,27 +569,28 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
     pdf.cell(52, 4.8, pdf_txt(fmt_eur(totale_finale), usa_uni), align="R")
 
     # 7. Piè di pagina riquadrato in basso a sinistra
+    # 7. Piè di pagina riquadrato in basso a sinistra
     y9 = y8 + h_tot_body
     h_foot = 23
     w_foot = 112
     pdf.rect(x0, y9, w_foot, h_foot)
 
-    pdf.set_font("Times", "B", 10)
+    pdf.set_font(f_serif, "B", 10)
     pdf.set_xy(x0 + 1.5, y9 + 1)
-    pdf.cell(w_foot - 3, 4.5, ditta_data.get("titolare", ""))
+    pdf.cell(w_foot - 3, 4.5, pdf_txt(ditta_data.get("titolare", ""), usa_uni))
 
-    pdf.set_font("Times", "", 9.5)
+    pdf.set_font(f_serif, "", 9.5)
     pdf.set_xy(x0 + 1.5, y9 + 5.5)
-    pdf.cell(w_foot - 3, 4.2, ditta_data.get("indirizzo", ""))
+    pdf.cell(w_foot - 3, 4.2, pdf_txt(ditta_data.get("indirizzo", ""), usa_uni))
 
     pdf.set_xy(x0 + 1.5, y9 + 9.7)
-    pdf.cell(w_foot - 3, 4.2, ditta_data.get("cap_citta", ""))
+    pdf.cell(w_foot - 3, 4.2, pdf_txt(ditta_data.get("cap_citta", ""), usa_uni))
 
     pdf.set_xy(x0 + 1.5, y9 + 13.9)
-    pdf.cell(w_foot - 3, 4.2, f"P.IVA {ditta_data.get('piva', '')} cf {ditta_data.get('cf', '')}")
+    pdf.cell(w_foot - 3, 4.2, pdf_txt(f"P.IVA {ditta_data.get('piva', '')} cf {ditta_data.get('cf', '')}", usa_uni))
 
     pdf.set_xy(x0 + 1.5, y9 + 18.1)
-    pdf.cell(w_foot - 3, 4.2, ditta_data.get("telefono", ""))
+    pdf.cell(w_foot - 3, 4.2, pdf_txt(ditta_data.get("telefono", ""), usa_uni))
 
     return bytes(pdf.output())
 
