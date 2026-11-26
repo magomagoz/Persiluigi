@@ -621,7 +621,7 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
     pdf.cell(6, 4.8, pdf_txt("€", usa_uni))
     pdf.cell(52, 4.8, pdf_txt(fmt_eur(totale_finale), usa_uni), align="R")
 
-    # 7. Piè di pagina riquadrato in basso a sinistra
+    # 7. Piè di pagina riquadrato
     y9 = y8 + h_tot_body
     h_foot = 23
     w_foot = w_tot
@@ -662,7 +662,6 @@ def genera_xml_fatturapa(doc_data, ditta_data):
     num_fatt = pulisci_testo(doc_data.get("numero", "1"))
     prog_invio = re.sub(r"[^A-Za-z0-9]", "", num_fatt)[:10] or "00001"
 
-    # Header
     header = sub(root, "FatturaElettronicaHeader")
     dati_trasm = sub(header, "DatiTrasmissione")
     id_trasm = sub(dati_trasm, "IdTrasmittente")
@@ -676,7 +675,6 @@ def genera_xml_fatturapa(doc_data, ditta_data):
         sdi_cli = "0000000"
     sub(dati_trasm, "CodiceDestinatario", sdi_cli)
 
-    # CedentePrestatore (la tua ditta)
     ced = sub(header, "CedentePrestatore")
     ced_anag = sub(ced, "DatiAnagrafici")
     ced_idf = sub(ced_anag, "IdFiscaleIVA")
@@ -705,7 +703,6 @@ def genera_xml_fatturapa(doc_data, ditta_data):
     sub(ced_sede, "Comune", citta_ced)
     sub(ced_sede, "Nazione", "IT")
 
-    # CessionarioCommittente (cliente)
     cess = sub(header, "CessionarioCommittente")
     cess_anag = sub(cess, "DatiAnagrafici")
     cf_piva_cli = re.sub(r"\s+", "", pulisci_testo(doc_data.get("cliente_piva", ""))).upper()
@@ -728,7 +725,6 @@ def genera_xml_fatturapa(doc_data, ditta_data):
     sub(cess_sede, "Comune", pulisci_testo(doc_data.get("cliente_citta", "")) or "Roma")
     sub(cess_sede, "Nazione", "IT")
 
-    # Body
     body = sub(root, "FatturaElettronicaBody")
     dati_gen = sub(body, "DatiGenerali")
     dati_doc = sub(dati_gen, "DatiGeneraliDocumento")
@@ -758,7 +754,6 @@ def genera_xml_fatturapa(doc_data, ditta_data):
     tot_doc = float(doc_data.get("totale", 0.0) or 0.0)
     sub(dati_doc, "ImportoTotaleDocumento", f"{tot_doc:.2f}")
 
-    # Righe e riepilogo IVA per aliquota
     dati_beni = sub(body, "DatiBeniServizi")
     righe = doc_data.get("righe") or []
     riep_map = {}
@@ -795,7 +790,6 @@ def genera_xml_fatturapa(doc_data, ditta_data):
         sub(riep, "Imposta", f"{imposta_al:.2f}")
         sub(riep, "EsigibilitaIVA", "I")
 
-    # DatiPagamento
     iban_ced = re.sub(r"[\s\-]+", "", pulisci_testo(ditta_data.get("iban", ""))).upper()
     dati_pag = sub(body, "DatiPagamento")
     sub(dati_pag, "CondizioniPagamento", "TP02")
@@ -805,8 +799,7 @@ def genera_xml_fatturapa(doc_data, ditta_data):
     if iban_ced:
         sub(det_pag, "IBAN", iban_ced)
 
-    xml_bytes = ET.tostring(root, encoding="utf-8", xml_declaration=True)
-    return xml_bytes
+    return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
 # --- BARRA SUPERIORE NELLE SEZIONI INTERNE ---
 if st.session_state.pagina_attiva != "home":
@@ -814,10 +807,7 @@ if st.session_state.pagina_attiva != "home":
     with top_l:
         if st.button("⬅️ Torna alla Home", key="btn_back_home"):
             vai_a("home")
-    #with top_c:
-        #st.caption(f"**{db['ditta'].get('denominazione', 'Ditta Individuale')}** — {db['ditta'].get('titolare', '')}")
-    
-    #col_logo, col_titolo = st.columns([1.2, 6], vertical_alignment="center")
+
     with col_logo:
         mostra_logo_programma(width=110)
     with col_titolo:
@@ -825,8 +815,8 @@ if st.session_state.pagina_attiva != "home":
         st.caption(
             f"{db['ditta'].get('denominazione', '')} — {db['ditta'].get('titolare', '')} | "
             "Ditta individuale"
-        ) 
-    
+        )
+
     with top_r:
         db_top = json.loads(json.dumps(db, default=str))
         db_top.setdefault("ditta", {})["logo_b64"] = ottieni_logo_azienda_b64(db["ditta"])
@@ -886,7 +876,6 @@ if st.session_state.pagina_attiva == "home":
 
     st.write("")
 
-    # Sezione Caricamento / Salvataggio File Storico posizionata sotto i pulsanti
     st.markdown('<div class="storico-box">', unsafe_allow_html=True)
     st.subheader("📂 Gestione File dello Storico (.json)")
     st.write("Carica un file dello storico salvato in precedenza oppure esporta una copia aggiornata dell'archivio corrente.")
@@ -1024,7 +1013,7 @@ elif st.session_state.pagina_attiva == "clienti":
                     st.rerun()
             except Exception as e:
                 st.error(f"Errore lettura Excel clienti: {e}")
-    
+
     with st.expander("➕ Aggiungi Nuovo Cliente", expanded=False):
         with st.form("form_cliente", clear_on_submit=True):
             c1, c2 = st.columns(2)
@@ -1123,7 +1112,7 @@ elif st.session_state.pagina_attiva == "fornitori":
                     st.rerun()
             except Exception as e:
                 st.error(f"Errore lettura Excel fornitori: {e}")
-    
+
     with st.expander("➕ Aggiungi Nuovo Fornitore", expanded=False):
         with st.form("form_fornitore", clear_on_submit=True):
             c1, c2 = st.columns(2)
@@ -1225,7 +1214,7 @@ elif st.session_state.pagina_attiva == "magazzino":
                 st.rerun()
             except Exception as e:
                 st.error(f"Errore durante la lettura del file Excel: {e}")
-        
+
     with st.expander("➕ Aggiungi Articolo / Prestazione", expanded=False):
         with st.form("form_magazzino", clear_on_submit=True):
             c1, c2, c3 = st.columns(3)
@@ -1361,8 +1350,8 @@ elif st.session_state.pagina_attiva == "fatture_attive":
                     st.rerun()
             except Exception as e:
                 st.error(f"Errore lettura Excel fatture attive: {e}")
-    
-    tab1, tab2 = st.tabs(["➕ Nuova Fattura di Vendita", "📋 Registro Fatture Emesse & Stampa PDF"])
+
+    tab1, tab2 = st.tabs(["➕ Nuova Fattura di Vendita", "📋 Registro Fatture Emesse & Stampa PDF / XML"])
 
     with tab1:
         if "righe_fattura_attiva" not in st.session_state:
@@ -1457,7 +1446,6 @@ elif st.session_state.pagina_attiva == "fatture_attive":
                 stato_pag = col_p2.selectbox("Stato Pagamento", ["Da Incassare", "Incassata"])
 
                 if st.button("💾 Registra Fattura e Scarica Magazzino", type="primary"):
-
                     if not pulisci_testo(num_fatt):
                         st.error("Inserisci il Numero Fattura.")
                         st.stop()
@@ -1503,9 +1491,10 @@ elif st.session_state.pagina_attiva == "fatture_attive":
     with tab2:
         if db["fatture_attive"]:
             st.subheader("Elenco Fatture Attive")
+            piva_file = re.sub(r"\D", "", pulisci_testo(db["ditta"].get("piva", ""))) or "00000000000"
             for idx, f in enumerate(db["fatture_attive"]):
                 with st.container(border=True):
-                    c_info, c_pdf, c_del = st.columns([3.5, 1.5, 1], vertical_alignment="center")
+                    c_info, c_pdf, c_xml, c_del = st.columns([3.2, 1.35, 1.25, 0.9], vertical_alignment="center")
                     c_info.write(
                         f"**Fatt. {f.get('numero', '')}** — Cliente: **{f.get('cliente_nome', '')}**\n"
                         f"Data: `{f.get('data', '')}` | Scad.: `{f.get('scadenza', '')}` | "
@@ -1513,11 +1502,20 @@ elif st.session_state.pagina_attiva == "fatture_attive":
                     )
                     pdf_bytes = genera_pdf_documento("Fattura", f, db["ditta"])
                     c_pdf.download_button(
-                        label="📄 Scarica PDF",
+                        label="📄 PDF",
                         data=pdf_bytes,
                         file_name=f"Fattura_{str(f.get('numero', '')).replace('/', '_')}.pdf",
                         mime="application/pdf",
                         key=f"dl_fa_{idx}"
+                    )
+                    xml_bytes = genera_xml_fatturapa(f, db["ditta"])
+                    prog_file = re.sub(r"[^A-Za-z0-9]", "", str(f.get("numero", ""))) or str(idx + 1)
+                    c_xml.download_button(
+                        label="🧾 XML",
+                        data=xml_bytes,
+                        file_name=f"IT{piva_file}_{prog_file}.xml",
+                        mime="application/xml",
+                        key=f"dl_xml_fa_{idx}"
                     )
                     with c_del:
                         pulsante_elimina_sicuro(
@@ -1584,173 +1582,169 @@ elif st.session_state.pagina_attiva == "fatture_passive":
             except Exception as e:
                 st.error(f"Errore lettura Excel fatture passive: {e}")
 
-        with st.expander("📄 Importa Fatture Passive da file XML / ZIP (FatturaPA)", expanded=False):
-            st.caption("Carica uno o più file `.xml` (anche `p7m` rinominati `.xml` se puliti) oppure un archivio `.zip` scaricato dal portale.")
-            files_xml_fp = st.file_uploader(
-                "Seleziona file XML o ZIP Fatture Passive",
-                type=["xml", "zip"],
-                accept_multiple_files=True,
-                key="xml_fp_up"
-            )
-    
-            def _strip_ns(tag):
-                return tag.split("}", 1)[-1] if "}" in tag else tag
-    
-            def _trova_testo(elem, percorso_tag):
-                curr = elem
-                for t in percorso_tag:
-                    if curr is None:
-                        return ""
-                    trovato = next((c for c in curr if _strip_ns(c.tag) == t), None)
-                    curr = trovato
-                return pulisci_testo(curr.text) if (curr is not None and curr.text) else ""
-    
-            def _parse_data_xml(s_data):
-                s = pulisci_testo(s_data)
-                if not s:
-                    return date.today().strftime("%d/%m/%Y")
-                for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
-                    try:
-                        return datetime.strptime(s[:10], fmt).strftime("%d/%m/%Y")
-                    except ValueError:
-                        pass
-                return s
-    
-            def _estrai_fattura_da_xml_bytes(raw_bytes, nome_file=""):
-                testo_xml = raw_bytes.decode("utf-8", errors="replace").lstrip("\ufeff").strip()
-                root = ET.fromstring(testo_xml.encode("utf-8"))
-    
-                # Cerca CedentePrestatore e FatturaElettronicaBody anche con namespace
-                cedente = None
-                corpi = []
-                for el in root.iter():
-                    nome_tag = _strip_ns(el.tag)
-                    if nome_tag == "CedentePrestatore" and cedente is None:
-                        cedente = el
-                    elif nome_tag == "FatturaElettronicaBody":
-                        corpi.append(el)
-    
-                forn_nome = ""
-                if cedente is not None:
-                    forn_nome = (
-                        _trova_testo(cedente, ["DatiAnagrafici", "Anagrafica", "Denominazione"])
-                        or " ".join([
-                            _trova_testo(cedente, ["DatiAnagrafici", "Anagrafica", "Nome"]),
-                            _trova_testo(cedente, ["DatiAnagrafici", "Anagrafica", "Cognome"])
-                        ]).strip()
-                    )
-    
-                risultati = []
-                for body in corpi:
-                    dati_gen = next((c for c in body if _strip_ns(c.tag) == "DatiGenerali"), None)
-                    dati_doc = next((c for c in dati_gen if _strip_ns(c.tag) == "DatiGeneraliDocumento"), None) if dati_gen is not None else None
-    
-                    num_doc = _trova_testo(dati_doc, ["Numero"]) if dati_doc is not None else ""
-                    data_doc = _parse_data_xml(_trova_testo(dati_doc, ["Data"])) if dati_doc is not None else date.today().strftime("%d/%m/%Y")
-                    tot_doc_raw = _trova_testo(dati_doc, ["ImportoTotaleDocumento"]) if dati_doc is not None else ""
-    
-                    # Scadenza pagamento (se presente in DatiPagamento)
-                    scad_doc = (date.today() + timedelta(days=30)).strftime("%d/%m/%Y")
-                    for el in body.iter():
-                        if _strip_ns(el.tag) == "DettaglioPagamento":
-                            dt_scad = _trova_testo(el, ["DataScadenzaPagamento"])
-                            if dt_scad:
-                                scad_doc = _parse_data_xml(dt_scad)
-                                break
-    
-                    # Descrizioni righe
-                    descrizioni = []
+    with st.expander("📄 Importa Fatture Passive da file XML / ZIP (FatturaPA)", expanded=False):
+        st.caption("Carica uno o più file `.xml` oppure un archivio `.zip` scaricato dal portale.")
+        files_xml_fp = st.file_uploader(
+            "Seleziona file XML o ZIP Fatture Passive",
+            type=["xml", "zip"],
+            accept_multiple_files=True,
+            key="xml_fp_up"
+        )
+
+        def _strip_ns(tag):
+            return tag.split("}", 1)[-1] if "}" in tag else tag
+
+        def _trova_testo(elem, percorso_tag):
+            curr = elem
+            for t in percorso_tag:
+                if curr is None:
+                    return ""
+                trovato = next((c for c in curr if _strip_ns(c.tag) == t), None)
+                curr = trovato
+            return pulisci_testo(curr.text) if (curr is not None and curr.text) else ""
+
+        def _parse_data_xml(s_data):
+            s = pulisci_testo(s_data)
+            if not s:
+                return date.today().strftime("%d/%m/%Y")
+            for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
+                try:
+                    return datetime.strptime(s[:10], fmt).strftime("%d/%m/%Y")
+                except ValueError:
+                    pass
+            return s
+
+        def _estrai_fattura_da_xml_bytes(raw_bytes, nome_file=""):
+            testo_xml = raw_bytes.decode("utf-8", errors="replace").lstrip("\ufeff").strip()
+            root = ET.fromstring(testo_xml.encode("utf-8"))
+
+            cedente = None
+            corpi = []
+            for el in root.iter():
+                nome_tag = _strip_ns(el.tag)
+                if nome_tag == "CedentePrestatore" and cedente is None:
+                    cedente = el
+                elif nome_tag == "FatturaElettronicaBody":
+                    corpi.append(el)
+
+            forn_nome = ""
+            if cedente is not None:
+                forn_nome = (
+                    _trova_testo(cedente, ["DatiAnagrafici", "Anagrafica", "Denominazione"])
+                    or " ".join([
+                        _trova_testo(cedente, ["DatiAnagrafici", "Anagrafica", "Nome"]),
+                        _trova_testo(cedente, ["DatiAnagrafici", "Anagrafica", "Cognome"])
+                    ]).strip()
+                )
+
+            risultati = []
+            for body in corpi:
+                dati_gen = next((c for c in body if _strip_ns(c.tag) == "DatiGenerali"), None)
+                dati_doc = next((c for c in dati_gen if _strip_ns(c.tag) == "DatiGeneraliDocumento"), None) if dati_gen is not None else None
+
+                num_doc = _trova_testo(dati_doc, ["Numero"]) if dati_doc is not None else ""
+                data_doc = _parse_data_xml(_trova_testo(dati_doc, ["Data"])) if dati_doc is not None else date.today().strftime("%d/%m/%Y")
+                tot_doc_raw = _trova_testo(dati_doc, ["ImportoTotaleDocumento"]) if dati_doc is not None else ""
+
+                scad_doc = (date.today() + timedelta(days=30)).strftime("%d/%m/%Y")
+                for el in body.iter():
+                    if _strip_ns(el.tag) == "DettaglioPagamento":
+                        dt_scad = _trova_testo(el, ["DataScadenzaPagamento"])
+                        if dt_scad:
+                            scad_doc = _parse_data_xml(dt_scad)
+                            break
+
+                descrizioni = []
+                for el in body.iter():
+                    if _strip_ns(el.tag) == "DettaglioLinee":
+                        d_riga = _trova_testo(el, ["Descrizione"])
+                        if d_riga:
+                            descrizioni.append(d_riga)
+                desc_unica = " | ".join(descrizioni[:3]) if descrizioni else (f"Fattura XML {nome_file}" if nome_file else "Fattura XML")
+                if len(desc_unica) > 180:
+                    desc_unica = desc_unica[:177] + "..."
+
+                imp_tot = 0.0
+                iva_tot = 0.0
+                trovato_riep = False
+                for el in body.iter():
+                    if _strip_ns(el.tag) == "DatiRiepilogo":
+                        trovato_riep = True
+                        imp_s = _trova_testo(el, ["ImponibileImporto"])
+                        iva_s = _trova_testo(el, ["Imposta"])
+                        try:
+                            imp_tot += float(imp_s.replace(",", ".")) if imp_s else 0.0
+                        except ValueError:
+                            pass
+                        try:
+                            iva_tot += float(iva_s.replace(",", ".")) if iva_s else 0.0
+                        except ValueError:
+                            pass
+
+                if not trovato_riep:
                     for el in body.iter():
                         if _strip_ns(el.tag) == "DettaglioLinee":
-                            d_riga = _trova_testo(el, ["Descrizione"])
-                            if d_riga:
-                                descrizioni.append(d_riga)
-                    desc_unica = " | ".join(descrizioni[:3]) if descrizioni else (f"Fattura XML {nome_file}" if nome_file else "Fattura XML")
-                    if len(desc_unica) > 180:
-                        desc_unica = desc_unica[:177] + "..."
-    
-                    # Riepilogo IVA e imponibile
-                    imp_tot = 0.0
-                    iva_tot = 0.0
-                    trovato_riep = False
-                    for el in body.iter():
-                        if _strip_ns(el.tag) == "DatiRiepilogo":
-                            trovato_riep = True
-                            imp_s = _trova_testo(el, ["ImponibileImporto"])
-                            iva_s = _trova_testo(el, ["Imposta"])
+                            pt_s = _trova_testo(el, ["PrezzoTotale"])
+                            al_s = _trova_testo(el, ["AliquotaIVA"])
                             try:
-                                imp_tot += float(imp_s.replace(",", ".")) if imp_s else 0.0
+                                pt_v = float(pt_s.replace(",", ".")) if pt_s else 0.0
+                                al_v = float(al_s.replace(",", ".")) if al_s else 0.0
+                                imp_tot += pt_v
+                                iva_tot += round(pt_v * (al_v / 100.0), 2)
                             except ValueError:
                                 pass
-                            try:
-                                iva_tot += float(iva_s.replace(",", ".")) if iva_s else 0.0
-                            except ValueError:
-                                pass
-    
-                    if not trovato_riep:
-                        for el in body.iter():
-                            if _strip_ns(el.tag) == "DettaglioLinee":
-                                pt_s = _trova_testo(el, ["PrezzoTotale"])
-                                al_s = _trova_testo(el, ["AliquotaIVA"])
-                                try:
-                                    pt_v = float(pt_s.replace(",", ".")) if pt_s else 0.0
-                                    al_v = float(al_s.replace(",", ".")) if al_s else 0.0
-                                    imp_tot += pt_v
-                                    iva_tot += round(pt_v * (al_v / 100.0), 2)
-                                except ValueError:
-                                    pass
-    
-                    try:
-                        tot_val = float(tot_doc_raw.replace(",", ".")) if tot_doc_raw else round(imp_tot + iva_tot, 2)
-                    except ValueError:
-                        tot_val = round(imp_tot + iva_tot, 2)
-    
-                    risultati.append({
-                        "numero": num_doc or nome_file or "XML-DOC",
-                        "data": data_doc,
-                        "scadenza": scad_doc,
-                        "fornitore": forn_nome or "Fornitore XML",
-                        "descrizione": desc_unica,
-                        "imponibile": round(imp_tot, 2),
-                        "iva": round(iva_tot, 2),
-                        "totale": round(tot_val, 2),
-                        "stato": "Da Pagare"
-                    })
-                return risultati
-    
-            if files_xml_fp and st.button("📥 Importa XML / ZIP Selezionati", key="btn_xml_fp", type="primary"):
-                imp_ok, errori_xml = 0, []
-                for up_f in files_xml_fp:
-                    nome_up = up_f.name
-                    raw_up = up_f.read()
-                    try:
-                        if nome_up.lower().endswith(".zip"):
-                            with zipfile.ZipFile(io.BytesIO(raw_up)) as zf:
-                                for member in zf.namelist():
-                                    if member.lower().endswith(".xml") and not member.startswith("__MACOSX"):
-                                        try:
-                                            estratti = _estrai_fattura_da_xml_bytes(zf.read(member), member)
-                                            for voce_fp in estratti:
-                                                db["fatture_passive"].append(voce_fp)
-                                                imp_ok += 1
-                                        except Exception as e_m:
-                                            errori_xml.append(f"{nome_up} -> {member}: {e_m}")
-                        else:
-                            estratti = _estrai_fattura_da_xml_bytes(raw_up, nome_up)
-                            for voce_fp in estratti:
-                                db["fatture_passive"].append(voce_fp)
-                                imp_ok += 1
-                    except Exception as e_f:
-                        errori_xml.append(f"{nome_up}: {e_f}")
-    
-                if imp_ok > 0:
-                    st.session_state.storico_caricato = True
-                st.success(f"Fatture passive importate da XML/ZIP: {imp_ok}")
-                if errori_xml:
-                    st.warning("Alcuni file non sono stati letti:\n- " + "\n- ".join(errori_xml))
-                if imp_ok > 0:
-                    st.rerun()
-    
+
+                try:
+                    tot_val = float(tot_doc_raw.replace(",", ".")) if tot_doc_raw else round(imp_tot + iva_tot, 2)
+                except ValueError:
+                    tot_val = round(imp_tot + iva_tot, 2)
+
+                risultati.append({
+                    "numero": num_doc or nome_file or "XML-DOC",
+                    "data": data_doc,
+                    "scadenza": scad_doc,
+                    "fornitore": forn_nome or "Fornitore XML",
+                    "descrizione": desc_unica,
+                    "imponibile": round(imp_tot, 2),
+                    "iva": round(iva_tot, 2),
+                    "totale": round(tot_val, 2),
+                    "stato": "Da Pagare"
+                })
+            return risultati
+
+        if files_xml_fp and st.button("📥 Importa XML / ZIP Selezionati", key="btn_xml_fp", type="primary"):
+            imp_ok, errori_xml = 0, []
+            for up_f in files_xml_fp:
+                nome_up = up_f.name
+                raw_up = up_f.read()
+                try:
+                    if nome_up.lower().endswith(".zip"):
+                        with zipfile.ZipFile(io.BytesIO(raw_up)) as zf:
+                            for member in zf.namelist():
+                                if member.lower().endswith(".xml") and not member.startswith("__MACOSX"):
+                                    try:
+                                        estratti = _estrai_fattura_da_xml_bytes(zf.read(member), member)
+                                        for voce_fp in estratti:
+                                            db["fatture_passive"].append(voce_fp)
+                                            imp_ok += 1
+                                    except Exception as e_m:
+                                        errori_xml.append(f"{nome_up} -> {member}: {e_m}")
+                    else:
+                        estratti = _estrai_fattura_da_xml_bytes(raw_up, nome_up)
+                        for voce_fp in estratti:
+                            db["fatture_passive"].append(voce_fp)
+                            imp_ok += 1
+                except Exception as e_f:
+                    errori_xml.append(f"{nome_up}: {e_f}")
+
+            if imp_ok > 0:
+                st.session_state.storico_caricato = True
+            st.success(f"Fatture passive importate da XML/ZIP: {imp_ok}")
+            if errori_xml:
+                st.warning("Alcuni file non sono stati letti:\n- " + "\n- ".join(errori_xml))
+            if imp_ok > 0:
+                st.rerun()
+
     with st.expander("➕ Registra Nuova Fattura di Acquisto", expanded=False):
         if not db["fornitori"]:
             st.caption("Nessun fornitore in anagrafica: puoi caricare lo storico dalla Home o aggiungere un fornitore.")
@@ -1775,7 +1769,6 @@ elif st.session_state.pagina_attiva == "fatture_passive":
                 qta_carico = cm2.number_input("Quantità acquistata", min_value=0.0, value=0.0, step=1.0)
 
                 if st.form_submit_button("💾 Registra Fattura Passiva"):
-
                     if num_doc and descrizione:
                         totale = round(imponibile + iva, 2)
                         db["fatture_passive"].append({
@@ -1972,7 +1965,7 @@ elif st.session_state.pagina_attiva == "preventivi":
                     st.rerun()
             except Exception as e:
                 st.error(f"Errore lettura Excel preventivi: {e}")
-        
+
     tab_p1, tab_p2 = st.tabs(["➕ Nuovo Preventivo (Offerta)", "📂 Archivio Preventivi & Conversione"])
 
     with tab_p1:
@@ -2017,12 +2010,12 @@ elif st.session_state.pagina_attiva == "preventivi":
 
                 st.markdown(f"### Totale Preventivo: **€ {tot_p:.2f}**")
                 note_p = st.text_input("Note finali preventivo", value="")
-                                
+
                 if st.button("💾 Salva Preventivo", type="primary"):
                     if not pulisci_testo(num_prev):
                         st.error("Inserisci il Numero Offerta / Preventivo.")
                         st.stop()
-                    
+
                     db["preventivi"].append({
                         "numero": num_prev,
                         "data": data_prev.strftime("%d/%m/%Y"),
@@ -2102,4 +2095,3 @@ elif st.session_state.pagina_attiva == "preventivi":
                             on_conferma=lambda i=idx: db["preventivi"].pop(i),
                             key_prefix=f"del_prev_{idx}"
                         )
-
