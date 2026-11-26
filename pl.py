@@ -206,6 +206,41 @@ def fmt_eur(val):
         return "-"
     return f"{val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
+def aggiungi_o_aggiorna_magazzino(nuovo_art):
+    cod_new = str(nuovo_art.get("codice", "")).strip().lower()
+    desc_new = str(nuovo_art.get("descrizione", "")).strip().lower()
+    qta_new = float(nuovo_art.get("giacenza", 0.0) or 0.0)
+
+    for art in db["magazzino"]:
+        cod_es = str(art.get("codice", "")).strip().lower()
+        desc_es = str(art.get("descrizione", "")).strip().lower()
+        stesso_codice = bool(cod_new and cod_es and cod_new == cod_es)
+        stessa_desc = bool(desc_new and desc_es and desc_new == desc_es)
+
+        if stesso_codice or stessa_desc:
+            art["giacenza"] = round(float(art.get("giacenza", 0.0) or 0.0) + qta_new, 2)
+            if float(nuovo_art.get("costo_acquisto", 0.0) or 0.0) > 0:
+                art["costo_acquisto"] = float(nuovo_art["costo_acquisto"])
+            if float(nuovo_art.get("prezzo_vendita", 0.0) or 0.0) > 0:
+                art["prezzo_vendita"] = float(nuovo_art["prezzo_vendita"])
+            if nuovo_art.get("tipo"):
+                art["tipo"] = nuovo_art["tipo"]
+            if nuovo_art.get("iva") is not None:
+                art["iva"] = int(nuovo_art["iva"])
+            return "aggiornato"
+
+    voce = {
+        "codice": str(nuovo_art.get("codice", "")).strip() or f"ART-{len(db['magazzino'])+1:03d}",
+        "descrizione": str(nuovo_art.get("descrizione", "")).strip(),
+        "tipo": nuovo_art.get("tipo", "Prodotto Fisico (con giacenza)"),
+        "costo_acquisto": float(nuovo_art.get("costo_acquisto", 0.0) or 0.0),
+        "prezzo_vendita": float(nuovo_art.get("prezzo_vendita", 0.0) or 0.0),
+        "iva": int(nuovo_art.get("iva", 10) or 10),
+        "giacenza": round(qta_new, 2)
+    }
+    db["magazzino"].append(voce)
+    return "inserito"
+
 def pulsante_elimina_sicuro(stato_key, etichetta_avviso, on_conferma, key_prefix):
     if "conferma_elimina" not in st.session_state:
         st.session_state.conferma_elimina = None
@@ -789,6 +824,58 @@ elif st.session_state.pagina_attiva == "fornitori":
 elif st.session_state.pagina_attiva == "magazzino":
     st.header("📦 Gestione Magazzino & Listino Interventi")
 
+    with st.expander("📊 Importa Magazzino da file Excel (.xlsx / .xls)", expanded=False):
+        st.caption(
+            "Colonne supportate (anche con nomi simili): `codice`, `descrizione`, `tipo`, "
+            "`costo_acquisto`, `prezzo_vendita`, `iva`, `giacenza` (o `quantita`). "
+            "Se un articolo è già presente, le quantità vengono sommate."
+        )
+        file_excel = st.file_uploader("Seleziona file Excel", type=["xlsx", "xls"], key="excel_magazzino_up")
+
+        if file_excel is not None and st.button("📥 Importa e Aggiorna Magazzino", key="btn_import_excel_mag", type="primary"):
+            try:
+                df_xl = pd.read_excel(file_excel)
+                df_xl.columns = [str(c).strip().lower().replace(" ", "_") for c in df_xl.columns]
+
+                def pick_col(row, nomi, default=None):
+                    for n in nomi:
+                        if n in df_xl.columns and pd.notna(row.get(n)):
+                            return row.get(n)
+                    return default
+
+                inseriti, aggiornati = 0, 0
+                for _, row in df_xl.iterrows():
+                    desc_val = str(pick_col(row, ["descrizione", "articolo", "nome", "prodotto"], "") or "").strip()
+                    if not desc_val:
+                        continue
+
+                    cod_val = str(pick_col(row, ["codice", "cod", "sku", "id"], "") or "").strip()
+                    tipo_val = str(pick_col(row, ["tipo", "tipologia"], "Prodotto Fisico (con giacenza)") or "Prodotto Fisico (con giacenza)").strip()
+                    costo_val = float(pd.to_numeric(pick_col(row, ["costo_acquisto", "costo", "prezzo_acquisto"], 0.0), errors="coerce") or 0.0)
+                    vendita_val = float(pd.to_numeric(pick_col(row, ["prezzo_vendita", "prezzo", "listino"], 0.0), errors="coerce") or 0.0)
+                    iva_val = int(float(pd.to_numeric(pick_col(row, ["iva", "aliquota_iva"], 10), errors="coerce") or 10))
+                    qta_val = float(pd.to_numeric(pick_col(row, ["giacenza", "quantita", "quantità", "qta", "qty"], 0.0), errors="coerce") or 0.0)
+
+                    esito = aggiungi_o_aggiorna_magazzino({
+                        "codice": cod_val,
+                        "descrizione": desc_val,
+                        "tipo": tipo_val,
+                        "costo_acquisto": costo_val,
+                        "prezzo_vendita": vendita_val,
+                        "iva": iva_val,
+                        "giacenza": qta_val
+                    })
+                    if esito == "aggiornato":
+                        aggiornati += 1
+                    else:
+                        inseriti += 1
+
+                st.session_state.storico_caricato = True
+                st.success(f"Importazione completata: {inseriti} nuovi articoli inseriti, {aggiornati} già presenti aggiornati con somma quantità.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Errore durante la lettura del file Excel: {e}")
+        
     with st.expander("➕ Aggiungi Articolo / Prestazione", expanded=False):
         with st.form("form_magazzino", clear_on_submit=True):
             c1, c2, c3 = st.columns(3)
@@ -805,7 +892,7 @@ elif st.session_state.pagina_attiva == "magazzino":
 
             if st.form_submit_button("Salva in Magazzino"):
                 if descrizione:
-                    db["magazzino"].append({
+                    esito = aggiungi_o_aggiorna_magazzino({
                         "codice": codice,
                         "descrizione": descrizione,
                         "tipo": tipo,
@@ -815,7 +902,10 @@ elif st.session_state.pagina_attiva == "magazzino":
                         "giacenza": giacenza
                     })
                     st.session_state.storico_caricato = True
-                    st.success(f"Articolo '{descrizione}' salvato!")
+                    if esito == "aggiornato":
+                        st.success(f"Articolo già presente: quantità sommata a '{descrizione}'!")
+                    else:
+                        st.success(f"Articolo '{descrizione}' salvato!")
                     st.rerun()
                 else:
                     st.warning("Inserisci una descrizione.")
