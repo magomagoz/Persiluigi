@@ -93,12 +93,6 @@ st.markdown("""
     [data-testid="stSidebarCollapsedControl"] {display: none !important;}
     [data-testid="collapsedControl"] {display: none !important;}
 
-    .main {background-color: #f8f9fa;}
-    .stButton>button {
-        border-radius: 8px;
-        font-weight: 600;
-    }
-
     .storico-box {
         background-color: #ffffff;
         padding: 10px;
@@ -106,6 +100,12 @@ st.markdown("""
         border: 1px solid #e2e8f0;
         box-shadow: 0 3px 10px rgba(15, 23, 42, 0.05);
         margin-top: 12px;
+    }
+
+    .main {background-color: #f8f9fa;}
+    .stButton>button {
+        border-radius: 8px;
+        font-weight: 600;
     }
 
     /* Contenitore dei pulsanti della Home: larghezza e altezza bloccate */
