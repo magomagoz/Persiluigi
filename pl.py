@@ -915,7 +915,7 @@ if st.session_state.pagina_attiva == "home":
         suffisso_titolare = f"_{titolare_slug}" if titolare_slug else "",
 
         st.download_button(
-            label="⬇️ Scarica Storico Attuale (.json)",
+            label="⬇️ Salva Storico Attuale (.json)",
             data=json_str_home,
             file_name=nome_file_storico_json(db["ditta"]),
             mime="application/json",
