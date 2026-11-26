@@ -821,11 +821,12 @@ if st.session_state.pagina_attiva != "home":
         db_top = json.loads(json.dumps(db, default=str))
         db_top.setdefault("ditta", {})["logo_b64"] = ottieni_logo_azienda_b64(db["ditta"])
         json_str_top = json.dumps(db_top, indent=2, default=str)
+        titolare_slug = re.sub(r"[^A-Za-z0-9]+", "_", pulisci_testo(db["ditta"].get("titolare", ""))).strip("_"),
+        suffisso_titolare = f"_{titolare_slug}" if titolare_slug else "",
+
         st.download_button(
             label="💾 Salva Storico (.json)",
             data=json_str_top,
-            titolare_slug = re.sub(r"[^A-Za-z0-9]+", "_", pulisci_testo(db["ditta"].get("titolare", ""))).strip("_"),
-            suffisso_titolare = f"_{titolare_slug}" if titolare_slug else "",
             file_name = f"contabilita{suffisso_titolare}_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
             mime="application/json",
             key="dl_top_json"
@@ -901,11 +902,12 @@ if st.session_state.pagina_attiva == "home":
         st.write("")
         db_export = normalizza_db(json.loads(json.dumps(db, default=str)))
         json_str_home = json.dumps(db_export, indent=2, default=str)
+        titolare_slug = re.sub(r"[^A-Za-z0-9]+", "_", pulisci_testo(db["ditta"].get("titolare", ""))).strip("_"),
+        suffisso_titolare = f"_{titolare_slug}" if titolare_slug else "",
+
         st.download_button(
             label="⬇️ Scarica Storico Attuale (.json)",
             data=json_str_home,
-            titolare_slug = re.sub(r"[^A-Za-z0-9]+", "_", pulisci_testo(db["ditta"].get("titolare", ""))).strip("_"),
-            suffisso_titolare = f"_{titolare_slug}" if titolare_slug else "",
             file_name = f"contabilita{suffisso_titolare}_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
             mime="application/json",
             key="btn_scarica_storico"
