@@ -846,15 +846,20 @@ if st.session_state.pagina_attiva != "home":
 # SCHERMATA INIZIALE: LOGO PROGRAMMA (logo_app.png) + PULSANTI GRANDI
 # ==============================================================================
 if st.session_state.pagina_attiva == "home":
-    col_logo, col_titolo = st.columns([1.2, 6], vertical_alignment="center")
-    with col_logo:
-        mostra_logo_programma(width=110)
-    with col_titolo:
-        st.title("Gestione contabile semplice")
-        st.caption(
-            f"{db['ditta'].get('denominazione', '')} — {db['ditta'].get('titolare', '')} | "
-            "Ditta individuale"
-        )
+    _, col_centro, _ = st.columns([1.8, 3.4, 1.8], vertical_alignment="center")
+    with col_centro:
+        c_logo, c_tit = st.columns([1, 4], vertical_alignment="center")
+        with c_logo:
+            mostra_logo_programma(width=95)
+        with c_tit:
+            st.markdown(
+                "<h1 style='margin:0; white-space:nowrap;'>Gestione contabile semplice</h1>",
+                unsafe_allow_html=True
+            )
+            st.caption(
+                f"{db['ditta'].get('denominazione', '')} — {db['ditta'].get('titolare', '')} | "
+                "Ditta individuale"
+            )
 
     riga1 = st.columns(4, gap="medium")
     with riga1[0]:
