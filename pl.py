@@ -569,7 +569,6 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
     pdf.cell(52, 4.8, pdf_txt(fmt_eur(totale_finale), usa_uni), align="R")
 
     # 7. Piè di pagina riquadrato in basso a sinistra
-    # 7. Piè di pagina riquadrato in basso a sinistra
     y9 = y8 + h_tot_body
     h_foot = 23
     w_foot = 112
@@ -980,6 +979,82 @@ elif st.session_state.pagina_attiva == "magazzino":
 elif st.session_state.pagina_attiva == "fatture_attive":
     st.header("🧾 Fatturazione Vendita (Attiva)")
 
+    with st.expander("📊 Importa Fatture Attive da file Excel (.xlsx / .xls)", expanded=False):
+        st.caption("Colonne supportate: `numero`, `data`, `scadenza`, `cliente_nome` (o `cliente`), `cliente_cap`, `cliente_piva` (o `cf`), `cliente_sdi`, `descrizione`, `imponibile`, `iva`, `totale`, `stato`.")
+        file_xl_fa = st.file_uploader("Seleziona file Excel Fatture Attive", type=["xlsx", "xls"], key="xl_fa_up")
+        if file_xl_fa is not None and st.button("📥 Importa Fatture Attive", key="btn_xl_fa", type="primary"):
+            try:
+                df_fa = pd.read_excel(file_xl_fa)
+                df_fa.columns = [str(c).strip().lower().replace(" ", "_") for c in df_fa.columns]
+                imp_ok, scartati = 0, []
+                for idx_r, row in df_fa.iterrows():
+                    num_r = pulisci_testo(pick_excel_col(df_fa.columns, row, ["numero", "num_fattura", "n_fattura"], ""))
+                    cli_r = pulisci_testo(pick_excel_col(df_fa.columns, row, ["cliente_nome", "cliente", "spettabile"], ""))
+                    if not num_r or not cli_r:
+                        scartati.append(f"Riga {idx_r+2}: numero fattura o cliente mancante")
+                        continue
+
+                    cap_r = pulisci_testo(pick_excel_col(df_fa.columns, row, ["cliente_cap", "cap"], ""))
+                    cf_r = pulisci_testo(pick_excel_col(df_fa.columns, row, ["cliente_piva", "piva", "cf", "codice_fiscale"], ""))
+                    sdi_r = pulisci_testo(pick_excel_col(df_fa.columns, row, ["cliente_sdi", "sdi"], "")).upper()
+
+                    ok1, e1 = valida_cap(cap_r)
+                    ok2, e2 = valida_cf_o_piva(cf_r, obbligatorio=False)
+                    ok3, e3 = valida_sdi(sdi_r)
+                    if not (ok1 and ok2 and ok3):
+                        motivo = "; ".join([m for ok, m in [(ok1, e1), (ok2, e2), (ok3, e3)] if not ok])
+                        scartati.append(f"Riga {idx_r+2} (Fatt. {num_r}): {motivo}")
+                        continue
+
+                    imp_r = float(pd.to_numeric(pick_excel_col(df_fa.columns, row, ["imponibile"], 0.0), errors="coerce") or 0.0)
+                    iva_r = float(pd.to_numeric(pick_excel_col(df_fa.columns, row, ["iva"], 0.0), errors="coerce") or 0.0)
+                    tot_raw = pick_excel_col(df_fa.columns, row, ["totale", "importo"], None)
+                    tot_r = float(pd.to_numeric(tot_raw, errors="coerce")) if tot_raw is not None else round(imp_r + iva_r, 2)
+                    if pd.isna(tot_r):
+                        tot_r = round(imp_r + iva_r, 2)
+
+                    desc_r = pulisci_testo(pick_excel_col(df_fa.columns, row, ["descrizione", "oggetto"], "Fornitura / Lavorazione")) or "Fornitura / Lavorazione"
+                    data_r = pulisci_testo(pick_excel_col(df_fa.columns, row, ["data", "data_fattura"], date.today().strftime("%d/%m/%Y")))
+                    scad_r = pulisci_testo(pick_excel_col(df_fa.columns, row, ["scadenza"], (date.today() + timedelta(days=30)).strftime("%d/%m/%Y")))
+                    stato_r = pulisci_testo(pick_excel_col(df_fa.columns, row, ["stato", "stato_pagamento"], "Da Incassare")) or "Da Incassare"
+
+                    db["fatture_attive"].append({
+                        "numero": num_r,
+                        "data": data_r,
+                        "scadenza": scad_r,
+                        "rif_offerta": pulisci_testo(pick_excel_col(df_fa.columns, row, ["rif_offerta", "offerta"], "")),
+                        "cliente_nome": cli_r,
+                        "cliente_indirizzo": pulisci_testo(pick_excel_col(df_fa.columns, row, ["cliente_indirizzo", "indirizzo"], "")),
+                        "cliente_cap": cap_r,
+                        "cliente_citta": pulisci_testo(pick_excel_col(df_fa.columns, row, ["cliente_citta", "citta"], "")),
+                        "cliente_piva": cf_r.upper(),
+                        "cliente_sdi": sdi_r,
+                        "pagamento": pulisci_testo(pick_excel_col(df_fa.columns, row, ["pagamento", "regolamento"], "rimessa diretta")) or "rimessa diretta",
+                        "intestazione_corpo": "Vi rimettiamo regolare fattura per :",
+                        "righe": [{"codice_mag": None, "descrizione": desc_r, "qta": 1.0, "prezzo": imp_r if imp_r > 0 else tot_r, "iva": 10}],
+                        "imp_4": 0.0,
+                        "iva_4": 0.0,
+                        "imp_std": imp_r,
+                        "aliq_std": 10,
+                        "iva_std": iva_r,
+                        "rit_perc": 0.0,
+                        "rit_imp": 0.0,
+                        "totale": round(tot_r, 2),
+                        "stato": stato_r,
+                        "note": "saldo"
+                    })
+                    imp_ok += 1
+
+                if imp_ok > 0:
+                    st.session_state.storico_caricato = True
+                st.success(f"Fatture attive importate: {imp_ok}")
+                if scartati:
+                    st.warning("Righe non importate per controlli di validità:\n- " + "\n- ".join(scartati))
+                if imp_ok > 0:
+                    st.rerun()
+            except Exception as e:
+                st.error(f"Errore lettura Excel fatture attive: {e}")
+    
     tab1, tab2 = st.tabs(["➕ Nuova Fattura di Vendita", "📋 Registro Fatture Emesse & Stampa PDF"])
 
     with tab1:
@@ -1075,6 +1150,11 @@ elif st.session_state.pagina_attiva == "fatture_attive":
                 stato_pag = col_p2.selectbox("Stato Pagamento", ["Da Incassare", "Incassata"])
 
                 if st.button("💾 Registra Fattura e Scarica Magazzino", type="primary"):
+
+                    if not pulisci_testo(num_doc) or not pulisci_testo(descrizione):
+                        st.warning("Compila numero documento e descrizione.")
+                        st.stop()
+
                     nuova_fatt = {
                         "numero": num_fatt,
                         "data": data_fatt.strftime("%d/%m/%Y"),
@@ -1146,6 +1226,57 @@ elif st.session_state.pagina_attiva == "fatture_attive":
 elif st.session_state.pagina_attiva == "fatture_passive":
     st.header("📥 Fatturazione Acquisti (Passiva)")
 
+    with st.expander("📊 Importa Fatture Passive da file Excel (.xlsx / .xls)", expanded=False):
+        st.caption("Colonne supportate: `numero`, `data`, `scadenza`, `fornitore`, `descrizione`, `imponibile`, `iva`, `totale`, `stato`.")
+        file_xl_fp = st.file_uploader("Seleziona file Excel Fatture Passive", type=["xlsx", "xls"], key="xl_fp_up")
+        if file_xl_fp is not None and st.button("📥 Importa Fatture Passive", key="btn_xl_fp", type="primary"):
+            try:
+                df_fp = pd.read_excel(file_xl_fp)
+                df_fp.columns = [str(c).strip().lower().replace(" ", "_") for c in df_fp.columns]
+                imp_ok, scartati = 0, []
+                for idx_r, row in df_fp.iterrows():
+                    num_r = pulisci_testo(pick_excel_col(df_fp.columns, row, ["numero", "num_fattura", "n_documento"], ""))
+                    forn_r = pulisci_testo(pick_excel_col(df_fp.columns, row, ["fornitore", "ragione_sociale"], ""))
+                    desc_r = pulisci_testo(pick_excel_col(df_fp.columns, row, ["descrizione", "oggetto"], ""))
+                    if not num_r or not forn_r or not desc_r:
+                        scartati.append(f"Riga {idx_r+2}: numero, fornitore o descrizione mancanti")
+                        continue
+
+                    imp_r = float(pd.to_numeric(pick_excel_col(df_fp.columns, row, ["imponibile"], 0.0), errors="coerce") or 0.0)
+                    iva_r = float(pd.to_numeric(pick_excel_col(df_fp.columns, row, ["iva"], 0.0), errors="coerce") or 0.0)
+                    tot_raw = pick_excel_col(df_fp.columns, row, ["totale", "importo"], None)
+                    tot_r = float(pd.to_numeric(tot_raw, errors="coerce")) if tot_raw is not None else round(imp_r + iva_r, 2)
+                    if pd.isna(tot_r) or tot_r < 0:
+                        scartati.append(f"Riga {idx_r+2} (Fatt. {num_r}): importo non valido")
+                        continue
+
+                    data_r = pulisci_testo(pick_excel_col(df_fp.columns, row, ["data", "data_fattura"], date.today().strftime("%d/%m/%Y")))
+                    scad_r = pulisci_testo(pick_excel_col(df_fp.columns, row, ["scadenza"], (date.today() + timedelta(days=30)).strftime("%d/%m/%Y")))
+                    stato_r = pulisci_testo(pick_excel_col(df_fp.columns, row, ["stato", "stato_pagamento"], "Da Pagare")) or "Da Pagare"
+
+                    db["fatture_passive"].append({
+                        "numero": num_r,
+                        "data": data_r,
+                        "scadenza": scad_r,
+                        "fornitore": forn_r,
+                        "descrizione": desc_r,
+                        "imponibile": round(imp_r, 2),
+                        "iva": round(iva_r, 2),
+                        "totale": round(tot_r, 2),
+                        "stato": stato_r
+                    })
+                    imp_ok += 1
+
+                if imp_ok > 0:
+                    st.session_state.storico_caricato = True
+                st.success(f"Fatture passive importate: {imp_ok}")
+                if scartati:
+                    st.warning("Righe non importate per controlli di validità:\n- " + "\n- ".join(scartati))
+                if imp_ok > 0:
+                    st.rerun()
+            except Exception as e:
+                st.error(f"Errore lettura Excel fatture passive: {e}")
+    
     with st.expander("➕ Registra Nuova Fattura di Acquisto", expanded=False):
         if not db["fornitori"]:
             st.caption("Nessun fornitore in anagrafica: puoi caricare lo storico dalla Home o aggiungere un fornitore.")
@@ -1170,6 +1301,11 @@ elif st.session_state.pagina_attiva == "fatture_passive":
                 qta_carico = cm2.number_input("Quantità acquistata", min_value=0.0, value=0.0, step=1.0)
 
                 if st.form_submit_button("💾 Registra Fattura Passiva"):
+
+                    if not pulisci_testo(num_doc) or not pulisci_testo(descrizione):
+                        st.warning("Compila numero documento e descrizione.")
+                        st.stop()
+
                     if num_doc and descrizione:
                         totale = round(imponibile + iva, 2)
                         db["fatture_passive"].append({
@@ -1290,6 +1426,83 @@ elif st.session_state.pagina_attiva == "scadenzario":
 elif st.session_state.pagina_attiva == "preventivi":
     st.header("📝 Gestione Preventivi & Conversione in Fattura")
 
+    with st.expander("📊 Importa Preventivi da file Excel (.xlsx / .xls)", expanded=False):
+        st.caption("Colonne supportate: `numero` (o `offerta`), `data`, `validita` (o `scadenza`), `cliente_nome` (o `cliente`), `cliente_cap`, `cliente_piva` (o `cf`), `cliente_sdi`, `descrizione`, `imponibile`, `iva`, `totale`, `stato`.")
+        file_xl_prev = st.file_uploader("Seleziona file Excel Preventivi", type=["xlsx", "xls"], key="xl_prev_up")
+        if file_xl_prev is not None and st.button("📥 Importa Preventivi", key="btn_xl_prev", type="primary"):
+            try:
+                df_pr = pd.read_excel(file_xl_prev)
+                df_pr.columns = [str(c).strip().lower().replace(" ", "_") for c in df_pr.columns]
+                imp_ok, scartati = 0, []
+                for idx_r, row in df_pr.iterrows():
+                    num_r = pulisci_testo(pick_excel_col(df_pr.columns, row, ["numero", "offerta", "num_offerta"], ""))
+                    cli_r = pulisci_testo(pick_excel_col(df_pr.columns, row, ["cliente_nome", "cliente", "destinatario"], ""))
+                    if not num_r or not cli_r:
+                        scartati.append(f"Riga {idx_r+2}: numero offerta o cliente mancante")
+                        continue
+
+                    cap_r = pulisci_testo(pick_excel_col(df_pr.columns, row, ["cliente_cap", "cap"], ""))
+                    cf_r = pulisci_testo(pick_excel_col(df_pr.columns, row, ["cliente_piva", "piva", "cf", "codice_fiscale"], ""))
+                    sdi_r = pulisci_testo(pick_excel_col(df_pr.columns, row, ["cliente_sdi", "sdi"], "")).upper()
+
+                    ok1, e1 = valida_cap(cap_r)
+                    ok2, e2 = valida_cf_o_piva(cf_r, obbligatorio=False)
+                    ok3, e3 = valida_sdi(sdi_r)
+                    if not (ok1 and ok2 and ok3):
+                        motivo = "; ".join([m for ok, m in [(ok1, e1), (ok2, e2), (ok3, e3)] if not ok])
+                        scartati.append(f"Riga {idx_r+2} (Offerta {num_r}): {motivo}")
+                        continue
+
+                    imp_r = float(pd.to_numeric(pick_excel_col(df_pr.columns, row, ["imponibile"], 0.0), errors="coerce") or 0.0)
+                    iva_r = float(pd.to_numeric(pick_excel_col(df_pr.columns, row, ["iva"], 0.0), errors="coerce") or 0.0)
+                    tot_raw = pick_excel_col(df_pr.columns, row, ["totale", "importo"], None)
+                    tot_r = float(pd.to_numeric(tot_raw, errors="coerce")) if tot_raw is not None else round(imp_r + iva_r, 2)
+                    if pd.isna(tot_r) or tot_r < 0:
+                        scartati.append(f"Riga {idx_r+2} (Offerta {num_r}): importo non valido")
+                        continue
+
+                    desc_r = pulisci_testo(pick_excel_col(df_pr.columns, row, ["descrizione", "oggetto"], "Offerta / Preventivo")) or "Offerta / Preventivo"
+                    data_r = pulisci_testo(pick_excel_col(df_pr.columns, row, ["data", "data_offerta"], date.today().strftime("%d/%m/%Y")))
+                    scad_r = pulisci_testo(pick_excel_col(df_pr.columns, row, ["validita", "validità", "scadenza"], (date.today() + timedelta(days=15)).strftime("%d/%m/%Y")))
+                    stato_r = pulisci_testo(pick_excel_col(df_pr.columns, row, ["stato"], "In Attesa")) or "In Attesa"
+
+                    db["preventivi"].append({
+                        "numero": num_r,
+                        "data": data_r,
+                        "scadenza": scad_r,
+                        "rif_offerta": num_r,
+                        "cliente_nome": cli_r,
+                        "cliente_indirizzo": pulisci_testo(pick_excel_col(df_pr.columns, row, ["cliente_indirizzo", "indirizzo"], "")),
+                        "cliente_cap": cap_r,
+                        "cliente_citta": pulisci_testo(pick_excel_col(df_pr.columns, row, ["cliente_citta", "citta"], "")),
+                        "cliente_piva": cf_r.upper(),
+                        "cliente_sdi": sdi_r,
+                        "pagamento": pulisci_testo(pick_excel_col(df_pr.columns, row, ["pagamento", "regolamento"], "rimessa diretta")) or "rimessa diretta",
+                        "intestazione_corpo": "Vi rimettiamo nostra migliore offerta per :",
+                        "righe": [{"codice_mag": None, "descrizione": desc_r, "qta": 1.0, "prezzo": imp_r if imp_r > 0 else tot_r, "iva": 10}],
+                        "imp_4": 0.0,
+                        "iva_4": 0.0,
+                        "imp_std": imp_r,
+                        "aliq_std": 10,
+                        "iva_std": iva_r,
+                        "rit_perc": 0.0,
+                        "rit_imp": 0.0,
+                        "totale": round(tot_r, 2),
+                        "stato": stato_r,
+                        "note": ""
+                    })
+                    imp_ok += 1
+
+                if imp_ok > 0:
+                    st.session_state.storico_caricato = True
+                st.success(f"Preventivi importati: {imp_ok}")
+                if scartati:
+                    st.warning("Righe non importate per controlli di validità:\n- " + "\n- ".join(scartati))
+                if imp_ok > 0:
+                    st.rerun()
+            except Exception as e:
+                st.error(f"Errore lettura Excel preventivi: {e}")
+        
     tab_p1, tab_p2 = st.tabs(["➕ Nuovo Preventivo (Offerta)", "📂 Archivio Preventivi & Conversione"])
 
     with tab_p1:
@@ -1335,6 +1548,10 @@ elif st.session_state.pagina_attiva == "preventivi":
                 st.markdown(f"### Totale Preventivo: **€ {tot_p:.2f}**")
                 note_p = st.text_input("Note finali preventivo", value="")
 
+                if not pulisci_testo(num_prev):
+                    st.error("Inserisci il Numero Offerta / Preventivo.")
+                    st.stop()
+                                
                 if st.button("💾 Salva Preventivo", type="primary"):
                     db["preventivi"].append({
                         "numero": num_prev,
@@ -1385,6 +1602,15 @@ elif st.session_state.pagina_attiva == "preventivi":
 
                     if p.get("stato") != "Fatturato":
                         if c_act2.button("🔄 Converti", key=f"conv_{idx}"):
+                            ok1, e1 = valida_cap(p.get("cliente_cap", ""))
+                            ok2, e2 = valida_cf_o_piva(p.get("cliente_piva", ""), obbligatorio=False)
+                            ok3, e3 = valida_sdi(p.get("cliente_sdi", ""))
+                            errori_conv = [m for ok, m in [(ok1, e1), (ok2, e2), (ok3, e3)] if not ok]
+                            if errori_conv:
+                                for err in errori_conv:
+                                    st.error(err)
+                                st.stop()
+
                             nuovo_num_fatt = f"{len(db['fatture_attive'])+1}/{str(datetime.now().year)[-2:]}"
                             nuova_fatt_da_prev = p.copy()
                             nuova_fatt_da_prev["numero"] = nuovo_num_fatt
