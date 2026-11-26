@@ -55,6 +55,15 @@ def valida_iban(val, obbligatorio=False):
         return False, "IBAN non valido: cifra di controllo (MOD-97) errata."
     return True, ""
 
+def nome_file_storico_json(ditta_data):
+    raw_tit = ditta_data.get("titolare", "")
+    if isinstance(raw_tit, (list, tuple)):
+        raw_tit = " ".join(str(x) for x in raw_tit if x)
+    tit_pulito = pulisci_testo(raw_tit)
+    tit_slug = re.sub(r"[^A-Za-z0-9]+", "_", tit_pulito).strip("_")
+    parte_tit = f"_{tit_slug}" if tit_slug else ""
+    return f"contabilita{parte_tit}_{datetime.now().strftime('%y%m%d_%H%M')}.json"
+
 def valida_sdi(val):
     s = pulisci_testo(val).upper()
     if not s:
@@ -827,7 +836,7 @@ if st.session_state.pagina_attiva != "home":
         st.download_button(
             label="💾 Salva Storico (.json)",
             data=json_str_top,
-            file_name = f"contabilita{suffisso_titolare}_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
+            file_name=nome_file_storico_json(db["ditta"])
             mime="application/json",
             key="dl_top_json"
         )
@@ -908,7 +917,7 @@ if st.session_state.pagina_attiva == "home":
         st.download_button(
             label="⬇️ Scarica Storico Attuale (.json)",
             data=json_str_home,
-            file_name = f"contabilita{suffisso_titolare}_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
+            file_name=nome_file_storico_json(db["ditta"])
             mime="application/json",
             key="btn_scarica_storico"
         )
