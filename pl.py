@@ -121,9 +121,7 @@ st.markdown("""
         align-items: center !important;
         justify-content: flex-end !important;
         text-align: center !important;
-        white-space: pre-wrap !important;
         padding: 12px 10px 14px 10px !important;
-        position: relative !important;
         box-shadow: 0 6px 14px rgba(15, 23, 42, 0.14) !important;
         transition: transform 0.15s ease, box-shadow 0.15s ease !important;
     }
@@ -133,20 +131,29 @@ st.markdown("""
         box-shadow: 0 10px 20px rgba(15, 23, 42, 0.22) !important;
     }
     
-    /* Testo descrittivo in basso */
-    [class*="st-key-tile_"] button p {
+    /* Contenitore interno del testo: spinge tutto verso il basso lasciando spazio centrale all'icona */
+    [class*="st-key-tile_"] button [data-testid="stMarkdownContainer"],
+    [class*="st-key-tile_"] button [data-testid="stMarkdownContainer"] p {
+        width: 100% !important;
+        height: 100% !important;
+        margin: 0 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: flex-end !important;
+        align-items: center !important;
+        white-space: pre-line !important;
         font-size: 1.25rem !important;
         font-weight: 800 !important;
         line-height: 1.2 !important;
-        margin: 0 !important;
-        width: 100% !important;
     }
     
-    /* Icona ingrandita e posizionata al centro del pulsante */
-    [class*="st-key-tile_"] button p::first-line {
-        font-size: 4.2rem !important;
-        line-height: 1.0 !important;
+    /* Icona grande centrata sopra la descrizione in basso */
+    [class*="st-key-tile_"] button [data-testid="stMarkdownContainer"] p::first-line {
+        font-size: 4.3rem !important;
+        line-height: 1.35 !important;
+        font-weight: 400 !important;
     }
+
 
     /* Colori distinti per ciascuno degli 8 pulsanti */
     .st-key-tile_1 button { background: linear-gradient(135deg, #1e3a8a, #2563eb) !important; }
