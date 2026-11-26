@@ -1723,8 +1723,11 @@ elif st.session_state.pagina_attiva == "fatture_attive":
                             on_conferma=lambda i=idx: db["fatture_attive"].pop(i),
                             key_prefix=f"del_fa_{idx}"
                         )
-    st.write("")
-    
+    st.markdown(
+        "<hr style='border:none; border-top:1px solid #cbd5e1; margin:12px 0 36px 0;'>",
+        unsafe_allow_html=True
+    )
+
     anno_attivo = st.session_state.get("anno_contabilita", str(datetime.now().year))
     st.info(f"Anno di contabilità selezionato in Home: **{anno_attivo}**")
     
