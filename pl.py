@@ -99,6 +99,15 @@ st.markdown("""
         font-weight: 600;
     }
 
+    .storico-box {
+        background-color: #ffffff;
+        padding: 10px;
+        border-radius: 14px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.05);
+        margin-top: 12px;
+    }
+
     /* Contenitore dei pulsanti della Home: larghezza e altezza bloccate */
     [class*="st-key-tile_"] {
         width: 100% !important;
@@ -158,7 +167,7 @@ st.markdown("""
 
     .storico-box {
         background-color: #ffffff;
-        padding: 20px;
+        padding: 10px;
         border-radius: 14px;
         border: 1px solid #e2e8f0;
         box-shadow: 0 3px 10px rgba(15, 23, 42, 0.05);
