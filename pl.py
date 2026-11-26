@@ -462,14 +462,6 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
     pdf.set_xy(x0 + w_c1 + w_c2 + 1.5, y1 + 6.5)
     pdf.cell(w_c3 - 3, 5, pdf_txt(doc_data.get("rif_offerta", ""), usa_uni), align="L")
 
-    pdf.set_font("Times", "", 10.5)
-    pdf.set_xy(x0, y1 + 6.5)
-    pdf.cell(w_c1, 5, doc_data.get("data", ""), align="C")
-    pdf.set_xy(x0 + w_c1, y1 + 6.5)
-    pdf.cell(w_c2, 5, doc_data.get("numero", ""), align="C")
-    pdf.set_xy(x0 + w_c1 + w_c2 + 1.5, y1 + 6.5)
-    pdf.cell(w_c3 - 3, 5, doc_data.get("rif_offerta", ""), align="L")
-
     # 3. Riga regolamento e IBAN
     y2 = y1 + h_meta
     h_pag = 15
@@ -1301,8 +1293,8 @@ elif st.session_state.pagina_attiva == "fatture_attive":
 
                 if st.button("💾 Registra Fattura e Scarica Magazzino", type="primary"):
 
-                    if not pulisci_testo(num_doc) or not pulisci_testo(descrizione):
-                        st.warning("Compila numero documento e descrizione.")
+                    if not pulisci_testo(num_fatt):
+                        st.error("Inserisci il Numero Fattura.")
                         st.stop()
 
                     nuova_fatt = {
@@ -1697,12 +1689,12 @@ elif st.session_state.pagina_attiva == "preventivi":
 
                 st.markdown(f"### Totale Preventivo: **€ {tot_p:.2f}**")
                 note_p = st.text_input("Note finali preventivo", value="")
-
-                if not pulisci_testo(num_prev):
-                    st.error("Inserisci il Numero Offerta / Preventivo.")
-                    st.stop()
                                 
                 if st.button("💾 Salva Preventivo", type="primary"):
+                    if not pulisci_testo(num_prev):
+                        st.error("Inserisci il Numero Offerta / Preventivo.")
+                        st.stop()
+                    
                     db["preventivi"].append({
                         "numero": num_prev,
                         "data": data_prev.strftime("%d/%m/%Y"),
