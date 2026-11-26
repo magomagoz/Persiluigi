@@ -93,15 +93,6 @@ st.markdown("""
     [data-testid="stSidebarCollapsedControl"] {display: none !important;}
     [data-testid="collapsedControl"] {display: none !important;}
 
-    .storico-box {
-        background-color: #ffffff;
-        padding: 10px;
-        border-radius: 14px;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.05);
-        margin-top: 12px;
-    }
-
     .main {background-color: #f8f9fa;}
     .stButton>button {
         border-radius: 8px;
@@ -869,6 +860,11 @@ if st.session_state.pagina_attiva == "home":
                 f"{db['ditta'].get('denominazione', '')} — {db['ditta'].get('titolare', '')} | "
                 "Ditta individuale"
             )
+
+    st.markdown(
+        "<hr style='border:none; border-top:1px solid #cbd5e1; margin:12px 0 20px 0;'>",
+        unsafe_allow_html=True
+    )
 
     riga1 = st.columns(4, gap="medium")
     with riga1[0]:
