@@ -150,7 +150,7 @@ st.markdown("""
     
     /* Icona più grande e staccata dalla scritta sottostante */
     [class*="st-key-tile_"] button [data-testid="stMarkdownContainer"] p::first-line {
-        font-size: 8.6rem !important;
+        font-size: 3.6rem !important;
         line-height: 1.8 !important;
         font-weight: 400 !important;
     }
