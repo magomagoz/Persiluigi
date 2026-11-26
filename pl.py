@@ -104,8 +104,8 @@ st.markdown("""
         width: 100% !important;
         height: 175px !important;
     }
-
-    /* Pulsanti grandi della schermata iniziale: dimensioni identiche */
+    
+    /* Pulsanti grandi della schermata iniziale */
     [class*="st-key-tile_"] button {
         height: 175px !important;
         min-height: 175px !important;
@@ -119,31 +119,33 @@ st.markdown("""
         display: flex !important;
         flex-direction: column !important;
         align-items: center !important;
-        justify-content: center !important;
+        justify-content: flex-end !important;
         text-align: center !important;
         white-space: pre-wrap !important;
-        padding: 14px 10px !important;
+        padding: 12px 10px 14px 10px !important;
+        position: relative !important;
         box-shadow: 0 6px 14px rgba(15, 23, 42, 0.14) !important;
         transition: transform 0.15s ease, box-shadow 0.15s ease !important;
     }
-
+    
     [class*="st-key-tile_"] button:hover {
         transform: translateY(-3px) !important;
         box-shadow: 0 10px 20px rgba(15, 23, 42, 0.22) !important;
     }
-
-    /* Dicitura sotto l'icona */
+    
+    /* Testo descrittivo in basso */
     [class*="st-key-tile_"] button p {
-        font-size: 1.45rem !important;
+        font-size: 1.25rem !important;
         font-weight: 800 !important;
-        line-height: 1.25 !important;
+        line-height: 1.2 !important;
         margin: 0 !important;
+        width: 100% !important;
     }
-
-    /* Icona grande al centro */
+    
+    /* Icona ingrandita e posizionata al centro del pulsante */
     [class*="st-key-tile_"] button p::first-line {
-        font-size: 3.8rem !important;
-        line-height: 1.45 !important;
+        font-size: 4.2rem !important;
+        line-height: 1.0 !important;
     }
 
     /* Colori distinti per ciascuno degli 8 pulsanti */
