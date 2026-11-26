@@ -822,7 +822,7 @@ elif st.session_state.pagina_attiva == "fornitori":
 # 4. MAGAZZINO
 # ==============================================================================
 elif st.session_state.pagina_attiva == "magazzino":
-    st.header("📦 Gestione Magazzino & Listino Interventi")
+    st.header("📦 Gestione Magazzino")
 
     with st.expander("📊 Importa Magazzino da file Excel (.xlsx / .xls)", expanded=False):
         st.caption(
