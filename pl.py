@@ -621,7 +621,7 @@ def genera_pdf_documento(tipo_doc, doc_data, ditta_data):
     # 7. Piè di pagina riquadrato in basso a sinistra
     y9 = y8 + h_tot_body
     h_foot = 23
-    w_foot = 112
+    w_foot = w_tot
     pdf.rect(x0, y9, w_foot, h_foot)
 
     pdf.set_font(f_serif, "B", 10)
