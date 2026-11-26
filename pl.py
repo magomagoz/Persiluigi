@@ -862,7 +862,7 @@ if st.session_state.pagina_attiva == "home":
             )
 
     st.markdown(
-        "<hr style='border:none; border-top:1px solid #cbd5e1; margin:12px 0 28px 0;'>",
+        "<hr style='border:none; border-top:1px solid #cbd5e1; margin:12px 0 36px 0;'>",
         unsafe_allow_html=True
     )
 
