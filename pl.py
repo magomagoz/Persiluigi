@@ -1444,10 +1444,6 @@ elif st.session_state.pagina_attiva == "fatture_passive":
 
                 if st.form_submit_button("💾 Registra Fattura Passiva"):
 
-                    if not pulisci_testo(num_doc) or not pulisci_testo(descrizione):
-                        st.warning("Compila numero documento e descrizione.")
-                        st.stop()
-
                     if num_doc and descrizione:
                         totale = round(imponibile + iva, 2)
                         db["fatture_passive"].append({
