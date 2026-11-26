@@ -7,6 +7,64 @@ import os
 from datetime import datetime, date, timedelta
 from fpdf import FPDF
 from PIL import Image
+import re
+
+def pulisci_testo(val):
+    return "" if val is None else str(val).strip()
+
+def valida_cap(val):
+    s = pulisci_testo(val)
+    if not s:
+        return True, ""
+    if not re.fullmatch(r"\d{5}", s):
+        return False, "Il CAP deve contenere esattamente 5 cifre numeriche."
+    return True, ""
+
+def valida_piva(val, obbligatoria=False):
+    s = re.sub(r"\s+", "", pulisci_testo(val))
+    if not s:
+        return (False, "La Partita IVA è obbligatoria.") if obbligatoria else (True, "")
+    if not re.fullmatch(r"\d{11}", s):
+        return False, "La Partita IVA deve contenere esattamente 11 cifre numeriche."
+    return True, ""
+
+def valida_cf_o_piva(val, obbligatorio=False):
+    s = re.sub(r"\s+", "", pulisci_testo(val)).upper()
+    if not s:
+        return (False, "Il Codice Fiscale / P.IVA è obbligatorio.") if obbligatorio else (True, "")
+    if re.fullmatch(r"[A-Z0-9]{16}", s):
+        return True, ""
+    if re.fullmatch(r"\d{11}", s):
+        return True, ""
+    return False, "Inserisci un Codice Fiscale di 16 caratteri alfanumerici oppure una Partita IVA di 11 cifre."
+
+def valida_iban(val, obbligatorio=False):
+    s = re.sub(r"[\s\-]+", "", pulisci_testo(val)).upper()
+    if not s:
+        return (False, "L'IBAN è obbligatorio.") if obbligatorio else (True, "")
+    if not re.fullmatch(r"[A-Z]{2}\d{2}[A-Z0-9]{10,30}", s):
+        return False, "Formato IBAN non valido (es. IT + 2 cifre di controllo + coordinate)."
+    if s.startswith("IT") and len(s) != 27:
+        return False, "Un IBAN italiano (IT) deve avere esattamente 27 caratteri."
+    riordinato = s[4:] + s[:4]
+    numerico = "".join(str(ord(ch) - 55) if ch.isalpha() else ch for ch in riordinato)
+    if int(numerico) % 97 != 1:
+        return False, "IBAN non valido: cifra di controllo (MOD-97) errata."
+    return True, ""
+
+def valida_sdi(val):
+    s = pulisci_testo(val).upper()
+    if not s:
+        return True, ""
+    if not re.fullmatch(r"[A-Z0-9]{7}", s):
+        return False, "Il codice SDI deve essere di 7 caratteri alfanumerici (es. 0000000 o JHBM40P)."
+    return True, ""
+
+def pick_excel_col(df_cols, row, nomi, default=None):
+    for n in nomi:
+        if n in df_cols and pd.notna(row.get(n)):
+            return row.get(n)
+    return default
 
 # --- CONFIGURAZIONE PAGINA (SIDEBAR CHIUSA) ---
 st.set_page_config(
