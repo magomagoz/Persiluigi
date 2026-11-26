@@ -131,27 +131,26 @@ st.markdown("""
         box-shadow: 0 10px 20px rgba(15, 23, 42, 0.22) !important;
     }
     
-    /* Contenitore interno del testo: allinea la scritta in basso lasciando respiro sopra */
+    /* Contenitore interno del testo: blocco normale così ::first-line funziona davvero */
     [class*="st-key-tile_"] button [data-testid="stMarkdownContainer"],
     [class*="st-key-tile_"] button [data-testid="stMarkdownContainer"] p {
         width: 100% !important;
         height: 100% !important;
         margin: 0 !important;
-        padding-bottom: 8px !important;
-        display: flex !important;
-        flex-direction: column !important;
-        justify-content: flex-end !important;
-        align-items: center !important;
+        padding: 14px 8px 12px 8px !important;
+        box-sizing: border-box !important;
+        display: block !important;
+        text-align: center !important;
         white-space: pre-line !important;
         font-size: 1.2rem !important;
         font-weight: 800 !important;
-        line-height: 1.2 !important;
+        line-height: 1.25 !important;
     }
     
-    /* Icona più grande e staccata dalla scritta sottostante */
+    /* Prima riga = icona: ora viene ingrandita davvero perché <p> è block */
     [class*="st-key-tile_"] button [data-testid="stMarkdownContainer"] p::first-line {
-        font-size: 3.6rem !important;
-        line-height: 1.8 !important;
+        font-size: 4.5rem !important;
+        line-height: 1.5 !important;
         font-weight: 400 !important;
     }
 
