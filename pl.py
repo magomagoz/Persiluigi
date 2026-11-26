@@ -898,39 +898,36 @@ if st.session_state.pagina_attiva == "home":
 
     st.write("")
 
-    st.markdown('<div class="storico-box">', unsafe_allow_html=True)
-    st.subheader("📂 Gestione File dello Storico (.json)")
-    st.write("Carica un file dello storico salvato in precedenza oppure esporta una copia aggiornata dell'archivio corrente.")
+    with st.expander("📂 Gestione File dello Storico (.json)", expanded=False):
+        st.write("Carica un file dello storico salvato in precedenza oppure esporta una copia aggiornata dell'archivio corrente.")
 
-    col_up, col_dl = st.columns([2.2, 1.2], gap="large")
-    with col_up:
-        uploaded_file = st.file_uploader("Carica file storico (.json)", type=["json"], key="home_uploader")
-        if uploaded_file is not None:
-            if st.button("✅ Carica e Ripristina Storico", key="btn_carica_storico", type="primary"):
-                try:
-                    loaded_data = json.load(uploaded_file)
-                    st.session_state.db = normalizza_db(loaded_data)
-                    st.session_state.storico_caricato = True
-                    st.success("Storico caricato con successo! Ora tutte le sezioni mostrano i dati salvati.")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Errore durante il caricamento del file: {e}")
+        col_up, col_dl = st.columns([2.2, 1.2], gap="large")
+        with col_up:
+            uploaded_file = st.file_uploader("Carica file storico (.json)", type=["json"], key="home_uploader")
+            if uploaded_file is not None:
+                if st.button("✅ Carica e Ripristina Storico", key="btn_carica_storico", type="primary"):
+                    try:
+                        loaded_data = json.load(uploaded_file)
+                        st.session_state.db = normalizza_db(loaded_data)
+                        st.session_state.storico_caricato = True
+                        st.success("Storico caricato con successo! Ora tutte le sezioni mostrano i dati salvati.")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Errore durante il caricamento del file: {e}")
 
-    with col_dl:
-        st.write("")
-        st.write("")
-        db_export = normalizza_db(json.loads(json.dumps(db, default=str)))
-        json_str_home = json.dumps(db_export, indent=2, default=str)
-        titolare_slug = re.sub(r"[^A-Za-z0-9]+", "_", pulisci_testo(db["ditta"].get("titolare", ""))).strip("_"),
-        suffisso_titolare = f"_{titolare_slug}" if titolare_slug else "",
+        with col_dl:
+            st.write("")
+            st.write("")
+            db_export = normalizza_db(json.loads(json.dumps(db, default=str)))
+            json_str_home = json.dumps(db_export, indent=2, default=str)
+            st.download_button(
+                label="⬇️ Scarica Storico Attuale (.json)",
+                data=json_str_home,
+                file_name=nome_file_storico_json(db["ditta"]),
+                mime="application/json",
+                key="btn_scarica_storico"
+            )
 
-        st.download_button(
-            label="⬇️ Salva Storico Attuale (.json)",
-            data=json_str_home,
-            file_name=nome_file_storico_json(db["ditta"]),
-            mime="application/json",
-            key="btn_scarica_storico"
-        )
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ==============================================================================
